@@ -18,6 +18,7 @@
   --clay: #C1633C;
   --clay-bg: #F5E4D8;
   --gold: #B08D4F;
+  --gold-bg: #F1E7D2;
 }
 
 *{box-sizing:border-box;}
@@ -32,7 +33,7 @@ body{
 }
 
 .book{
-  max-width:720px;
+  max-width:760px;
   margin:0 auto;
   background:var(--page);
   border-radius:4px;
@@ -44,6 +45,7 @@ body{
   background:linear-gradient(155deg,var(--cover),var(--cover-dark));
   color:var(--page);
   padding:34px 30px 26px;
+  position:relative;
 }
 
 .cover h1{
@@ -61,24 +63,38 @@ body{
   font-weight:400;
 }
 
+#save-indicator{
+  position:absolute;
+  top:16px;
+  right:20px;
+  font-size:11.5px;
+  font-weight:500;
+  color:#E9D9DD;
+  opacity:0;
+  transition:opacity .4s ease;
+}
+#save-indicator.show{opacity:1;}
+
 nav{
   display:flex;
   border-bottom:1px solid var(--page-line);
   background:#F3EEE3;
+  overflow-x:auto;
 }
 
 nav button{
   flex:1;
-  padding:14px 10px;
+  padding:14px 8px;
   border:none;
   background:transparent;
   font-family:'Inter',sans-serif;
-  font-size:14px;
+  font-size:13.5px;
   font-weight:500;
   color:var(--ink-soft);
   cursor:pointer;
   border-bottom:2px solid transparent;
   transition:color .15s ease, border-color .15s ease;
+  white-space:nowrap;
 }
 
 nav button.active{
@@ -99,6 +115,13 @@ h2.section-title{
   margin:0 0 18px;
 }
 
+h3.calc-title{
+  font-family:'Fraunces',serif;
+  font-weight:500;
+  font-size:16px;
+  margin:0 0 14px;
+}
+
 .empty{
   color:var(--ink-soft);
   font-size:14px;
@@ -107,7 +130,6 @@ h2.section-title{
   text-align:center;
 }
 
-/* form */
 .form-row{
   display:flex;
   gap:10px;
@@ -129,7 +151,7 @@ h2.section-title{
   font-weight:500;
 }
 
-input, select{
+input, select, textarea{
   font-family:'Inter',sans-serif;
   font-size:14px;
   padding:9px 10px;
@@ -137,9 +159,12 @@ input, select{
   border-radius:3px;
   background:#fff;
   color:var(--ink);
+  width:100%;
 }
 
-input:focus, select:focus{
+textarea{resize:vertical; min-height:60px;}
+
+input:focus, select:focus, textarea:focus{
   outline:none;
   border-color:var(--cover);
 }
@@ -161,15 +186,26 @@ input:focus, select:focus{
   background:transparent;
   color:var(--cover);
 }
+.btn.small{
+  padding:6px 12px;
+  font-size:12.5px;
+}
+.btn.link{
+  background:none;
+  border:none;
+  color:var(--cover);
+  text-decoration:underline;
+  padding:0;
+  font-size:12.5px;
+}
 
-/* ledger list */
 .ledger{
   border-top:1px solid var(--page-line);
 }
 
 .row{
   display:flex;
-  align-items:center;
+  align-items:flex-start;
   justify-content:space-between;
   gap:12px;
   padding:13px 0;
@@ -177,6 +213,13 @@ input:focus, select:focus{
 }
 
 .row-main{flex:1; min-width:0;}
+
+.row-top{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
 
 .row-name{
   font-family:'Fraunces',serif;
@@ -190,6 +233,20 @@ input:focus, select:focus{
   margin-top:2px;
 }
 
+.row-note{
+  font-size:12.5px;
+  color:var(--ink-soft);
+  font-style:italic;
+  margin-top:4px;
+}
+
+.row-actions{
+  display:flex;
+  gap:6px;
+  flex-shrink:0;
+  align-items:center;
+}
+
 .badge{
   font-size:11px;
   font-weight:600;
@@ -197,7 +254,7 @@ input:focus, select:focus{
   border-radius:20px;
   white-space:nowrap;
 }
-.badge.gold{background:#F1E7D2; color:var(--gold);}
+.badge.gold{background:var(--gold-bg); color:var(--gold);}
 .badge.sage{background:var(--sage-bg); color:var(--sage);}
 .badge.clay{background:var(--clay-bg); color:var(--clay);}
 
@@ -206,7 +263,7 @@ input:focus, select:focus{
   background:none;
   color:var(--ink-soft);
   cursor:pointer;
-  font-size:13px;
+  font-size:12.5px;
   padding:4px 6px;
 }
 .icon-btn:hover{color:var(--clay);}
@@ -219,9 +276,11 @@ input:focus, select:focus{
   display:flex;
   gap:10px;
   margin-bottom:18px;
+  flex-wrap:wrap;
 }
 .summary .card{
   flex:1;
+  min-width:130px;
   background:#F3EEE3;
   border-radius:4px;
   padding:12px 14px;
@@ -237,52 +296,6 @@ input:focus, select:focus{
   margin-top:2px;
 }
 
-.calc-box{
-  margin-top:26px;
-  padding-top:20px;
-  border-top:1px solid var(--page-line);
-}
-
-.calc-title{
-  font-family:'Fraunces',serif;
-  font-weight:500;
-  font-size:16px;
-  margin:0 0 14px;
-}
-
-.calc-result{
-  margin-top:14px;
-}
-
-.calc-result table{
-  width:100%;
-  border-collapse:collapse;
-}
-
-.calc-result th, .calc-result td{
-  text-align:left;
-  padding:8px 4px;
-  font-size:13.5px;
-  border-bottom:1px solid var(--page-line);
-}
-
-.calc-result th{
-  color:var(--ink-soft);
-  font-weight:500;
-  font-size:11.5px;
-}
-
-.calc-result td.amount{
-  font-family:'Fraunces',serif;
-  font-weight:500;
-}
-
-.calc-result .calc-total{
-  margin-top:10px;
-  font-size:13px;
-  color:var(--ink-soft);
-}
-
 .att-buttons{
   display:flex;
   gap:8px;
@@ -293,15 +306,48 @@ input:focus, select:focus{
   border-radius:3px;
   border:1px solid var(--page-line);
   background:#fff;
-  font-size:13.5px;
+  font-size:13px;
   font-weight:600;
   cursor:pointer;
   color:var(--ink-soft);
 }
-.att-btn.present{border-color:var(--sage); }
-.att-btn.present.chosen{background:var(--sage-bg); color:var(--sage);}
-.att-btn.absent{border-color:var(--clay);}
-.att-btn.absent.chosen{background:var(--clay-bg); color:var(--clay);}
+.att-btn.presente{border-color:var(--sage);}
+.att-btn.presente.chosen{background:var(--sage-bg); color:var(--sage);}
+.att-btn.ausente{border-color:var(--clay);}
+.att-btn.ausente.chosen{background:var(--clay-bg); color:var(--clay);}
+.att-btn.reprogramada{border-color:var(--gold);}
+.att-btn.reprogramada.chosen{background:var(--gold-bg); color:var(--gold);}
+
+.calc-box{
+  margin-top:26px;
+  padding-top:20px;
+  border-top:1px solid var(--page-line);
+}
+
+.calc-result{margin-top:14px;}
+.calc-result table{width:100%; border-collapse:collapse;}
+.calc-result th, .calc-result td{
+  text-align:left;
+  padding:8px 4px;
+  font-size:13.5px;
+  border-bottom:1px solid var(--page-line);
+}
+.calc-result th{color:var(--ink-soft); font-weight:500; font-size:11.5px;}
+.calc-result td.amount{font-family:'Fraunces',serif; font-weight:500;}
+.calc-result .calc-total{margin-top:10px; font-size:13px; color:var(--ink-soft);}
+
+.section-block{
+  margin-top:26px;
+  padding-top:20px;
+  border-top:1px solid var(--page-line);
+}
+
+.backup-buttons{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-top:8px;
+}
 
 .footnote{
   text-align:center;
@@ -315,14 +361,17 @@ input:focus, select:focus{
 
 <div class="book">
   <div class="cover">
+    <span id="save-indicator">Guardado ✓</span>
     <h1>Cuaderno de clases</h1>
-    <p>Alumnos, pagos y asistencia en un solo lugar</p>
+    <p>Alumnos, pagos, asistencia y seguimiento en un solo lugar</p>
   </div>
 
   <nav>
-    <button class="tab-btn active" data-tab="alumnos">Alumnos</button>
+    <button class="tab-btn active" data-tab="resumen">Resumen</button>
+    <button class="tab-btn" data-tab="alumnos">Alumnos</button>
     <button class="tab-btn" data-tab="pagos">Pagos</button>
     <button class="tab-btn" data-tab="asistencia">Asistencia</button>
+    <button class="tab-btn" data-tab="seguimiento">Seguimiento</button>
   </nav>
 
   <main id="main"></main>
@@ -330,36 +379,72 @@ input:focus, select:focus{
 
 <script>
 const DAYS = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
-let state = { students: [], payments: [], attendance: [] };
-let activeTab = "alumnos";
-let loaded = false;
+const STORAGE_KEY = 'clases-ingles-data';
+let state = { students: [], payments: [], attendance: [], topics: [], grades: [] };
+let activeTab = 'resumen';
+let editingStudentId = null;
+let selectedPagoStudent = null;
+let selectedAsisStudent = null;
+let selectedSeguimientoStudent = null;
+let attendanceStatusChoice = 'presente';
 
-async function loadData(){
+function loadData(){
   try{
-    const res = await window.storage.get('app-data', true);
-    if(res && res.value){
-      state = JSON.parse(res.value);
-      state.students = state.students || [];
-      state.payments = state.payments || [];
-      state.attendance = state.attendance || [];
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      state.students = parsed.students || [];
+      state.payments = parsed.payments || [];
+      state.attendance = parsed.attendance || [];
+      state.topics = parsed.topics || [];
+      state.grades = parsed.grades || [];
     }
   }catch(e){
-    // no data yet
+    console.error('No se pudo leer el guardado local', e);
   }
-  loaded = true;
   render();
 }
 
-async function saveData(){
+function saveData(){
   try{
-    await window.storage.set('app-data', JSON.stringify(state), true);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    flashSaved();
   }catch(e){
     console.error('No se pudo guardar', e);
   }
 }
 
+function flashSaved(){
+  const el = document.getElementById('save-indicator');
+  if(!el) return;
+  el.classList.add('show');
+  clearTimeout(window._saveTimeout);
+  window._saveTimeout = setTimeout(()=>el.classList.remove('show'), 1200);
+}
+
 function uid(){
   return Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+}
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function formatDate(iso){
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+function currency(n){
+  return '$' + Math.round(n).toLocaleString('es-AR');
+}
+
+function paymentStatus(studentId){
+  const pays = state.payments.filter(p=>p.studentId===studentId).sort((a,b)=>b.date.localeCompare(a.date));
+  if(pays.length===0) return {status:'debe', label:'Nunca pagó'};
+  const days = Math.floor((Date.now() - new Date(pays[0].date+'T00:00:00')) / 86400000);
+  if(days > 35) return {status:'debe', label:`Debe · hace ${days} días`};
+  return {status:'aldia', label:'Al día'};
 }
 
 function switchTab(tab){
@@ -369,67 +454,138 @@ function switchTab(tab){
   });
   render();
 }
-
 document.querySelectorAll('.tab-btn').forEach(b=>{
   b.addEventListener('click', ()=>switchTab(b.dataset.tab));
 });
 
 function render(){
   const main = document.getElementById('main');
-  if(!loaded){
-    main.innerHTML = '<div class="empty">Cargando…</div>';
-    return;
-  }
+  if(activeTab==='resumen') main.innerHTML = renderResumen();
   if(activeTab==='alumnos') main.innerHTML = renderAlumnos();
   if(activeTab==='pagos') main.innerHTML = renderPagos();
   if(activeTab==='asistencia') main.innerHTML = renderAsistencia();
+  if(activeTab==='seguimiento') main.innerHTML = renderSeguimiento();
   attachHandlers();
 }
 
-/* ---------- ALUMNOS ---------- */
-function renderAlumnos(){
-  const rows = state.students.map(s=>`
+/* ---------- RESUMEN ---------- */
+function renderResumen(){
+  const monthKey = todayISO().slice(0,7);
+  const cobradoMes = state.payments.filter(p=>p.date.slice(0,7)===monthKey)
+    .reduce((s,p)=>s+Number(p.amount||0),0);
+  const clasesMes = state.attendance.filter(a=>a.date.slice(0,7)===monthKey && a.status==='presente').length;
+  const ausenciasMes = state.attendance.filter(a=>a.date.slice(0,7)===monthKey && a.status==='ausente').length;
+  const deben = state.students.map(s=>({s, st:paymentStatus(s.id)})).filter(x=>x.st.status==='debe');
+
+  const debenRows = deben.map(x=>`
     <div class="row">
       <div class="row-main">
-        <div class="row-name">${escapeHtml(s.name)}</div>
-        <div class="row-sub">${s.day} · ${s.time || 'sin horario'}</div>
+        <div class="row-name">${escapeHtml(x.s.name)}</div>
+        <div class="row-sub">${x.st.label}</div>
       </div>
-      <span class="badge gold">${s.freq}x/sem</span>
-      <button class="icon-btn" data-del-student="${s.id}">Eliminar</button>
+      <span class="badge clay">Debe</span>
     </div>
   `).join('');
 
   return `
+    <h2 class="section-title">Resumen del mes</h2>
+    <div class="summary">
+      <div class="card"><div class="num">${currency(cobradoMes)}</div><div class="lbl">Cobrado este mes</div></div>
+      <div class="card"><div class="num">${clasesMes}</div><div class="lbl">Clases dadas</div></div>
+      <div class="card"><div class="num">${ausenciasMes}</div><div class="lbl">Ausencias</div></div>
+    </div>
+
+    <div class="section-block">
+      <h3 class="calc-title">Pagos pendientes</h3>
+      <div class="ledger">
+        ${debenRows || '<div class="empty">Nadie debe por ahora</div>'}
+      </div>
+    </div>
+
+    <div class="section-block">
+      <h3 class="calc-title">Copia de seguridad</h3>
+      <p class="row-sub">Como la app guarda los datos en este navegador, conviene bajar un backup de tanto en tanto.</p>
+      <div class="backup-buttons">
+        <button type="button" class="btn secondary small" id="export-btn">Descargar backup (.json)</button>
+        <button type="button" class="btn secondary small" id="import-btn">Restaurar backup</button>
+        <input type="file" id="import-file" accept="application/json" style="display:none;">
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- ALUMNOS ---------- */
+function renderAlumnos(){
+  const editing = editingStudentId ? state.students.find(s=>s.id===editingStudentId) : null;
+
+  const rows = state.students.map(s=>{
+    const st = paymentStatus(s.id);
+    return `
+    <div class="row" data-student-row="${s.id}">
+      <div class="row-main">
+        <div class="row-top">
+          <div class="row-name">${escapeHtml(s.name)}</div>
+          <span class="badge ${st.status==='aldia' ? 'sage':'clay'}">${st.label}</span>
+        </div>
+        <div class="row-sub">${s.day} · ${s.time || 'sin horario'} · ${s.freq}x/sem${s.price ? ' · '+currency(s.price)+'/mes' : ''}</div>
+        ${s.objectives ? `<div class="row-note">Objetivo: ${escapeHtml(s.objectives)}</div>` : ''}
+      </div>
+      <div class="row-actions">
+        <button class="icon-btn" data-edit-student="${s.id}">Editar</button>
+        <button class="icon-btn" data-del-student="${s.id}">Eliminar</button>
+      </div>
+    </div>
+  `;
+  }).join('');
+
+  return `
     <h2 class="section-title">Alumnos</h2>
+    <div class="form-row">
+      <div class="field">
+        <label>Buscar</label>
+        <input type="text" id="student-search" placeholder="Nombre del alumno">
+      </div>
+    </div>
     <form id="student-form">
       <div class="form-row">
         <div class="field">
           <label>Nombre</label>
-          <input type="text" name="name" required placeholder="Nombre del alumno">
+          <input type="text" name="name" required placeholder="Nombre del alumno" value="${editing ? escapeHtml(editing.name) : ''}">
         </div>
         <div class="field">
           <label>Día</label>
           <select name="day">
-            ${DAYS.map(d=>`<option value="${d}">${d}</option>`).join('')}
+            ${DAYS.map(d=>`<option value="${d}" ${editing && editing.day===d ? 'selected':''}>${d}</option>`).join('')}
           </select>
         </div>
       </div>
       <div class="form-row">
         <div class="field">
           <label>Horario</label>
-          <input type="text" name="time" placeholder="Ej: 18:00">
+          <input type="text" name="time" placeholder="Ej: 18:00" value="${editing ? escapeHtml(editing.time||'') : ''}">
         </div>
         <div class="field">
           <label>Frecuencia semanal</label>
           <select name="freq">
-            <option value="1">1 vez por semana</option>
-            <option value="2">2 veces por semana</option>
+            <option value="1" ${editing && editing.freq==='1' ? 'selected':''}>1 vez por semana</option>
+            <option value="2" ${editing && editing.freq==='2' ? 'selected':''}>2 veces por semana</option>
           </select>
         </div>
+        <div class="field">
+          <label>Precio mensual</label>
+          <input type="number" name="price" min="0" step="1" placeholder="0" value="${editing ? (editing.price||'') : ''}">
+        </div>
       </div>
-      <button type="submit" class="btn">Agregar alumno</button>
+      <div class="form-row">
+        <div class="field">
+          <label>Objetivo actual (opcional)</label>
+          <input type="text" name="objectives" placeholder="Ej: rendir First Certificate en noviembre" value="${editing ? escapeHtml(editing.objectives||'') : ''}">
+        </div>
+      </div>
+      <button type="submit" class="btn">${editing ? 'Guardar cambios' : 'Agregar alumno'}</button>
+      ${editing ? '<button type="button" class="btn link" id="cancel-edit" style="margin-left:10px;">Cancelar edición</button>' : ''}
     </form>
-    <div class="ledger">
+    <div class="ledger" id="student-list">
       ${rows || '<div class="empty">Todavía no cargaste alumnos</div>'}
     </div>
   `;
@@ -437,11 +593,11 @@ function renderAlumnos(){
 
 /* ---------- PAGOS ---------- */
 function renderPagos(){
-  const options = state.students.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
   if(state.students.length===0){
     return `<h2 class="section-title">Pagos</h2><div class="empty">Cargá primero un alumno en la pestaña Alumnos</div>`;
   }
-  const selected = window._selectedPagoStudent || state.students[0].id;
+  const options = state.students.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  const selected = selectedPagoStudent || state.students[0].id;
   const studentPayments = state.payments.filter(p=>p.studentId===selected).sort((a,b)=>b.date.localeCompare(a.date));
   const total = studentPayments.reduce((sum,p)=>sum+Number(p.amount||0),0);
   const last = studentPayments[0];
@@ -449,12 +605,14 @@ function renderPagos(){
   const rows = studentPayments.map(p=>`
     <div class="row">
       <div class="row-main">
-        <div class="row-name">$${Number(p.amount).toLocaleString('es-AR')}</div>
+        <div class="row-name">${currency(p.amount)}</div>
         <div class="row-sub">${formatDate(p.date)}${p.note ? ' · '+escapeHtml(p.note) : ''}</div>
       </div>
       <button class="icon-btn" data-del-payment="${p.id}">Eliminar</button>
     </div>
   `).join('');
+
+  const totalAlumnos = state.students.reduce((s,st)=>s+Number(st.price||0),0);
 
   return `
     <h2 class="section-title">Pagos</h2>
@@ -462,14 +620,8 @@ function renderPagos(){
       <select id="pago-student-select">${options}</select>
     </div>
     <div class="summary">
-      <div class="card">
-        <div class="num">$${total.toLocaleString('es-AR')}</div>
-        <div class="lbl">Total registrado</div>
-      </div>
-      <div class="card">
-        <div class="num">${last ? formatDate(last.date) : '—'}</div>
-        <div class="lbl">Último pago</div>
-      </div>
+      <div class="card"><div class="num">${currency(total)}</div><div class="lbl">Total registrado</div></div>
+      <div class="card"><div class="num">${last ? formatDate(last.date) : '—'}</div><div class="lbl">Último pago</div></div>
     </div>
     <form id="payment-form">
       <div class="form-row">
@@ -510,7 +662,10 @@ function renderPagos(){
           <input type="number" id="calc-months" min="1" step="1" value="1">
         </div>
       </div>
-      <button type="button" class="btn secondary" id="calc-btn">Calcular</button>
+      <button type="button" class="btn link" id="calc-use-total">Usar el total de todos los alumnos (${currency(totalAlumnos)})</button>
+      <div style="margin-top:10px;">
+        <button type="button" class="btn secondary" id="calc-btn">Calcular</button>
+      </div>
       <div class="calc-result" id="calc-result"></div>
     </div>
   `;
@@ -522,15 +677,19 @@ function renderAsistencia(){
     return `<h2 class="section-title">Asistencia</h2><div class="empty">Cargá primero un alumno en la pestaña Alumnos</div>`;
   }
   const options = state.students.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
-  const selected = window._selectedAsisStudent || state.students[0].id;
+  const selected = selectedAsisStudent || state.students[0].id;
   const records = state.attendance.filter(a=>a.studentId===selected).sort((a,b)=>b.date.localeCompare(a.date));
+
+  const statusLabel = {presente:'Presente', ausente:'Ausente', reprogramada:'Reprogramada'};
+  const statusClass = {presente:'sage', ausente:'clay', reprogramada:'gold'};
 
   const rows = records.map(a=>`
     <div class="row">
       <div class="row-main">
         <div class="row-name">${formatDate(a.date)}</div>
+        ${a.note ? `<div class="row-note">${escapeHtml(a.note)}</div>` : ''}
       </div>
-      <span class="badge ${a.present ? 'sage' : 'clay'}">${a.present ? 'Presente' : 'Ausente'}</span>
+      <span class="badge ${statusClass[a.status]}">${statusLabel[a.status]}</span>
       <button class="icon-btn" data-del-att="${a.id}">Eliminar</button>
     </div>
   `).join('');
@@ -548,12 +707,17 @@ function renderAsistencia(){
         </div>
       </div>
       <div class="att-buttons" id="att-choice">
-        <button type="button" class="att-btn present chosen" data-present="1">Presente</button>
-        <button type="button" class="att-btn absent" data-present="0">Ausente</button>
+        <button type="button" class="att-btn presente chosen" data-status="presente">Presente</button>
+        <button type="button" class="att-btn ausente" data-status="ausente">Ausente</button>
+        <button type="button" class="att-btn reprogramada" data-status="reprogramada">Reprogramada</button>
       </div>
-      <div style="margin-top:14px;">
-        <button type="submit" class="btn">Guardar</button>
+      <div class="form-row" style="margin-top:10px;">
+        <div class="field">
+          <label>Nota (opcional — motivo o nueva fecha)</label>
+          <input type="text" name="note" placeholder="Ej: se pasa al jueves">
+        </div>
       </div>
+      <button type="submit" class="btn">Guardar</button>
     </form>
     <div class="ledger" style="margin-top:8px;">
       ${rows || '<div class="empty">Todavía no hay registros de asistencia</div>'}
@@ -561,41 +725,177 @@ function renderAsistencia(){
   `;
 }
 
-/* ---------- handlers ---------- */
+/* ---------- SEGUIMIENTO ---------- */
+function renderSeguimiento(){
+  if(state.students.length===0){
+    return `<h2 class="section-title">Seguimiento</h2><div class="empty">Cargá primero un alumno en la pestaña Alumnos</div>`;
+  }
+  const options = state.students.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  const selected = selectedSeguimientoStudent || state.students[0].id;
+  const student = state.students.find(s=>s.id===selected);
+
+  const topics = state.topics.filter(t=>t.studentId===selected).sort((a,b)=>b.date.localeCompare(a.date));
+  const grades = state.grades.filter(g=>g.studentId===selected).sort((a,b)=>b.date.localeCompare(a.date));
+
+  const topicRows = topics.map(t=>`
+    <div class="row">
+      <div class="row-main">
+        <div class="row-name">${formatDate(t.date)}</div>
+        <div class="row-sub">${escapeHtml(t.topic)}</div>
+      </div>
+      <button class="icon-btn" data-del-topic="${t.id}">Eliminar</button>
+    </div>
+  `).join('');
+
+  const gradeRows = grades.map(g=>`
+    <div class="row">
+      <div class="row-main">
+        <div class="row-name">${escapeHtml(g.grade)}</div>
+        <div class="row-sub">${formatDate(g.date)}${g.comment ? ' · '+escapeHtml(g.comment) : ''}</div>
+      </div>
+      <button class="icon-btn" data-del-grade="${g.id}">Eliminar</button>
+    </div>
+  `).join('');
+
+  return `
+    <h2 class="section-title">Seguimiento</h2>
+    <div class="select-student">
+      <select id="seg-student-select">${options}</select>
+    </div>
+
+    <h3 class="calc-title">Objetivo</h3>
+    <form id="objective-form">
+      <div class="form-row">
+        <div class="field">
+          <textarea name="objectives" placeholder="Ej: preparar entrevista laboral en inglés">${escapeHtml(student.objectives||'')}</textarea>
+        </div>
+      </div>
+      <button type="submit" class="btn small">Guardar objetivo</button>
+    </form>
+
+    <div class="section-block">
+      <h3 class="calc-title">Temas dados</h3>
+      <form id="topic-form">
+        <div class="form-row">
+          <div class="field" style="max-width:140px;">
+            <label>Fecha</label>
+            <input type="date" name="date" required value="${todayISO()}">
+          </div>
+          <div class="field">
+            <label>Tema</label>
+            <input type="text" name="topic" required placeholder="Ej: present perfect, vocabulario de viajes">
+          </div>
+        </div>
+        <button type="submit" class="btn small">Agregar tema</button>
+      </form>
+      <div class="ledger" style="margin-top:14px;">
+        ${topicRows || '<div class="empty">Todavía no hay temas cargados</div>'}
+      </div>
+    </div>
+
+    <div class="section-block">
+      <h3 class="calc-title">Notas de evaluaciones</h3>
+      <form id="grade-form">
+        <div class="form-row">
+          <div class="field">
+            <label>Fecha</label>
+            <input type="date" name="date" required value="${todayISO()}">
+          </div>
+          <div class="field">
+            <label>Nota / calificación</label>
+            <input type="text" name="grade" required placeholder="Ej: 9, o 'Muy bueno'">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label>Comentario (opcional)</label>
+            <input type="text" name="comment" placeholder="Ej: mejoró mucho el listening">
+          </div>
+        </div>
+        <button type="submit" class="btn small">Agregar nota</button>
+      </form>
+      <div class="ledger" style="margin-top:14px;">
+        ${gradeRows || '<div class="empty">Todavía no hay notas cargadas</div>'}
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- HANDLERS ---------- */
 function attachHandlers(){
+  // Alumnos
   const studentForm = document.getElementById('student-form');
   if(studentForm){
     studentForm.addEventListener('submit', e=>{
       e.preventDefault();
       const fd = new FormData(studentForm);
-      state.students.push({
-        id: uid(),
+      const data = {
         name: fd.get('name').trim(),
         day: fd.get('day'),
         time: fd.get('time').trim(),
-        freq: fd.get('freq')
-      });
+        freq: fd.get('freq'),
+        price: fd.get('price') || 0,
+        objectives: fd.get('objectives').trim()
+      };
+      if(editingStudentId){
+        const s = state.students.find(s=>s.id===editingStudentId);
+        Object.assign(s, data);
+        editingStudentId = null;
+      } else {
+        state.students.push({id: uid(), ...data});
+      }
       saveData();
       render();
     });
   }
 
+  const cancelEdit = document.getElementById('cancel-edit');
+  if(cancelEdit){
+    cancelEdit.addEventListener('click', ()=>{
+      editingStudentId = null;
+      render();
+    });
+  }
+
+  document.querySelectorAll('[data-edit-student]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      editingStudentId = btn.dataset.editStudent;
+      render();
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+
   document.querySelectorAll('[data-del-student]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const id = btn.dataset.delStudent;
+      if(!confirm('¿Eliminar este alumno y todos sus datos asociados?')) return;
       state.students = state.students.filter(s=>s.id!==id);
       state.payments = state.payments.filter(p=>p.studentId!==id);
       state.attendance = state.attendance.filter(a=>a.studentId!==id);
+      state.topics = state.topics.filter(t=>t.studentId!==id);
+      state.grades = state.grades.filter(g=>g.studentId!==id);
       saveData();
       render();
     });
   });
 
+  const searchInput = document.getElementById('student-search');
+  if(searchInput){
+    searchInput.addEventListener('input', ()=>{
+      const q = searchInput.value.trim().toLowerCase();
+      document.querySelectorAll('[data-student-row]').forEach(row=>{
+        const name = row.querySelector('.row-name').textContent.toLowerCase();
+        row.style.display = name.includes(q) ? '' : 'none';
+      });
+    });
+  }
+
+  // Pagos
   const pagoSelect = document.getElementById('pago-student-select');
   if(pagoSelect){
-    pagoSelect.value = window._selectedPagoStudent || state.students[0].id;
+    pagoSelect.value = selectedPagoStudent || state.students[0].id;
     pagoSelect.addEventListener('change', ()=>{
-      window._selectedPagoStudent = pagoSelect.value;
+      selectedPagoStudent = pagoSelect.value;
       render();
     });
   }
@@ -625,6 +925,14 @@ function attachHandlers(){
     });
   });
 
+  const calcUseTotal = document.getElementById('calc-use-total');
+  if(calcUseTotal){
+    calcUseTotal.addEventListener('click', ()=>{
+      const total = state.students.reduce((s,st)=>s+Number(st.price||0),0);
+      document.getElementById('calc-price').value = total;
+    });
+  }
+
   const calcBtn = document.getElementById('calc-btn');
   if(calcBtn){
     calcBtn.addEventListener('click', ()=>{
@@ -632,45 +940,43 @@ function attachHandlers(){
       const percent = Number(document.getElementById('calc-percent').value);
       const months = Math.max(1, Number(document.getElementById('calc-months').value) || 1);
       const resultBox = document.getElementById('calc-result');
-
       if(!price || !percent){
         resultBox.innerHTML = '<div class="empty" style="border-top:none;padding:10px 0;">Completá precio actual y % de aumento</div>';
         return;
       }
-
       let current = price;
       let rowsHtml = '';
-      for(let i=1; i<=months; i++){
+      for(let i=1;i<=months;i++){
         current = current * (1 + percent/100);
-        rowsHtml += `<tr><td>Mes ${i}</td><td class="amount">$${Math.round(current).toLocaleString('es-AR')}</td></tr>`;
+        rowsHtml += `<tr><td>Mes ${i}</td><td class="amount">${currency(current)}</td></tr>`;
       }
       const totalIncrease = current - price;
-
       resultBox.innerHTML = `
         <table>
           <thead><tr><th>Proyección</th><th>Precio</th></tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
-        <div class="calc-total">Aumento acumulado: $${Math.round(totalIncrease).toLocaleString('es-AR')} (de $${price.toLocaleString('es-AR')} a $${Math.round(current).toLocaleString('es-AR')})</div>
+        <div class="calc-total">Aumento acumulado: ${currency(totalIncrease)} (de ${currency(price)} a ${currency(current)})</div>
       `;
     });
   }
 
+  // Asistencia
   const asisSelect = document.getElementById('asis-student-select');
   if(asisSelect){
-    asisSelect.value = window._selectedAsisStudent || state.students[0].id;
+    asisSelect.value = selectedAsisStudent || state.students[0].id;
     asisSelect.addEventListener('change', ()=>{
-      window._selectedAsisStudent = asisSelect.value;
+      selectedAsisStudent = asisSelect.value;
       render();
     });
   }
 
   const attChoice = document.getElementById('att-choice');
-  let presentValue = '1';
+  attendanceStatusChoice = 'presente';
   if(attChoice){
     attChoice.querySelectorAll('.att-btn').forEach(btn=>{
       btn.addEventListener('click', ()=>{
-        presentValue = btn.dataset.present;
+        attendanceStatusChoice = btn.dataset.status;
         attChoice.querySelectorAll('.att-btn').forEach(b=>b.classList.remove('chosen'));
         btn.classList.add('chosen');
       });
@@ -686,7 +992,8 @@ function attachHandlers(){
         id: uid(),
         studentId: asisSelect.value,
         date: fd.get('date'),
-        present: presentValue === '1'
+        status: attendanceStatusChoice,
+        note: fd.get('note').trim()
       });
       saveData();
       render();
@@ -700,20 +1007,121 @@ function attachHandlers(){
       render();
     });
   });
-}
 
-/* ---------- utils ---------- */
-function escapeHtml(str){
-  const d = document.createElement('div');
-  d.textContent = str;
-  return d.innerHTML;
-}
-function todayISO(){
-  return new Date().toISOString().slice(0,10);
-}
-function formatDate(iso){
-  const [y,m,d] = iso.split('-');
-  return `${d}/${m}/${y}`;
+  // Seguimiento
+  const segSelect = document.getElementById('seg-student-select');
+  if(segSelect){
+    segSelect.value = selectedSeguimientoStudent || state.students[0].id;
+    segSelect.addEventListener('change', ()=>{
+      selectedSeguimientoStudent = segSelect.value;
+      render();
+    });
+  }
+
+  const objectiveForm = document.getElementById('objective-form');
+  if(objectiveForm){
+    objectiveForm.addEventListener('submit', e=>{
+      e.preventDefault();
+      const fd = new FormData(objectiveForm);
+      const s = state.students.find(s=>s.id===segSelect.value);
+      s.objectives = fd.get('objectives').trim();
+      saveData();
+      render();
+    });
+  }
+
+  const topicForm = document.getElementById('topic-form');
+  if(topicForm){
+    topicForm.addEventListener('submit', e=>{
+      e.preventDefault();
+      const fd = new FormData(topicForm);
+      state.topics.push({
+        id: uid(),
+        studentId: segSelect.value,
+        date: fd.get('date'),
+        topic: fd.get('topic').trim()
+      });
+      saveData();
+      render();
+    });
+  }
+
+  document.querySelectorAll('[data-del-topic]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.topics = state.topics.filter(t=>t.id!==btn.dataset.delTopic);
+      saveData();
+      render();
+    });
+  });
+
+  const gradeForm = document.getElementById('grade-form');
+  if(gradeForm){
+    gradeForm.addEventListener('submit', e=>{
+      e.preventDefault();
+      const fd = new FormData(gradeForm);
+      state.grades.push({
+        id: uid(),
+        studentId: segSelect.value,
+        date: fd.get('date'),
+        grade: fd.get('grade').trim(),
+        comment: fd.get('comment').trim()
+      });
+      saveData();
+      render();
+    });
+  }
+
+  document.querySelectorAll('[data-del-grade]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.grades = state.grades.filter(g=>g.id!==btn.dataset.delGrade);
+      saveData();
+      render();
+    });
+  });
+
+  // Resumen: backup
+  const exportBtn = document.getElementById('export-btn');
+  if(exportBtn){
+    exportBtn.addEventListener('click', ()=>{
+      const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup-clases-ingles-${todayISO()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  const importBtn = document.getElementById('import-btn');
+  const importFile = document.getElementById('import-file');
+  if(importBtn && importFile){
+    importBtn.addEventListener('click', ()=>importFile.click());
+    importFile.addEventListener('change', ()=>{
+      const file = importFile.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        try{
+          const parsed = JSON.parse(reader.result);
+          if(!confirm('Esto va a reemplazar todos los datos actuales por los del backup. ¿Continuar?')) return;
+          state.students = parsed.students || [];
+          state.payments = parsed.payments || [];
+          state.attendance = parsed.attendance || [];
+          state.topics = parsed.topics || [];
+          state.grades = parsed.grades || [];
+          saveData();
+          render();
+        }catch(e){
+          alert('No se pudo leer el archivo. ¿Es un backup válido?');
+        }
+      };
+      reader.readAsText(file);
+      importFile.value = '';
+    });
+  }
 }
 
 loadData();
