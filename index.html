@@ -377,9 +377,26 @@ input:focus, select:focus, textarea:focus{
   <main id="main"></main>
 </div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getFirestore, doc, setDoc, onSnapshot, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD5aq_aSrT3wB2etn0O9CKUQz1wpVGXxFc",
+  authDomain: "clases-4c1ab.firebaseapp.com",
+  projectId: "clases-4c1ab",
+  storageBucket: "clases-4c1ab.firebasestorage.app",
+  messagingSenderId: "1087866767270",
+  appId: "1:1087866767270:web:28b84996c3ce556ee9f167"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const db = getFirestore(fbApp);
+const docRef = doc(db, 'clases-ingles', 'data');
+try{ await enableIndexedDbPersistence(db); }catch(e){ /* varias pestañas abiertas u otro motivo, seguimos sin cache offline */ }
+
 const DAYS = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
-const STORAGE_KEY = 'clases-ingles-data';
+let dataLoaded = false;
 let state = { students: [], payments: [], attendance: [], topics: [], grades: [] };
 let activeTab = 'resumen';
 let editingStudentId = null;
@@ -388,38 +405,43 @@ let selectedAsisStudent = null;
 let selectedSeguimientoStudent = null;
 let attendanceStatusChoice = 'presente';
 
-function loadData(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw){
-      const parsed = JSON.parse(raw);
+let suppressNextSnapshotRender = false;
+
+function subscribeToData(){
+  onSnapshot(docRef, snap=>{
+    if(snap.exists()){
+      const parsed = snap.data();
       state.students = parsed.students || [];
       state.payments = parsed.payments || [];
       state.attendance = parsed.attendance || [];
       state.topics = parsed.topics || [];
       state.grades = parsed.grades || [];
     }
-  }catch(e){
-    console.error('No se pudo leer el guardado local', e);
-  }
-  render();
+    dataLoaded = true;
+    render();
+  }, err=>{
+    console.error('Error de sincronización', err);
+    flashSaved(false);
+  });
 }
 
-function saveData(){
+async function saveData(){
   try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    flashSaved();
+    await setDoc(docRef, state);
+    flashSaved(true);
   }catch(e){
-    console.error('No se pudo guardar', e);
+    console.error('No se pudo guardar en la nube', e);
+    flashSaved(false);
   }
 }
 
-function flashSaved(){
+function flashSaved(ok){
   const el = document.getElementById('save-indicator');
   if(!el) return;
+  el.textContent = ok===false ? 'Sin conexión ⚠' : 'Guardado ✓';
   el.classList.add('show');
   clearTimeout(window._saveTimeout);
-  window._saveTimeout = setTimeout(()=>el.classList.remove('show'), 1200);
+  window._saveTimeout = setTimeout(()=>el.classList.remove('show'), 1600);
 }
 
 function uid(){
@@ -460,6 +482,10 @@ document.querySelectorAll('.tab-btn').forEach(b=>{
 
 function render(){
   const main = document.getElementById('main');
+  if(!dataLoaded){
+    main.innerHTML = '<div class="empty">Cargando…</div>';
+    return;
+  }
   if(activeTab==='resumen') main.innerHTML = renderResumen();
   if(activeTab==='alumnos') main.innerHTML = renderAlumnos();
   if(activeTab==='pagos') main.innerHTML = renderPagos();
@@ -1124,7 +1150,7 @@ function attachHandlers(){
   }
 }
 
-loadData();
+subscribeToData();
 </script>
 </body>
 </html>
