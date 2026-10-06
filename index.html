@@ -577,10 +577,13 @@ function waPhone(raw){
 function waLink(s){
   const phone = waPhone(s.phone);
   if(!phone) return '';
-  const first = (s.name||'').trim().split(' ')[0];
-  const mes = new Date().toLocaleDateString('es-AR', {month:'long'});
-  const precio = s.price ? ` (${currency(s.price)})` : '';
-  const msg = `Hola ${first}! Te escribo para recordarte el pago de las clases de ${mes}${precio}. ¡Gracias!`;
+  const msg = [
+    'Hola! Como estás?',
+    'Te molesto con este recordatorio.',
+    '📌Recordá que el pago mensual es del 1 al 10 de cada mes 😊',
+    'Si se te complica esa fecha, escribime y vemos cómo acomodarlo.',
+    'Gracias!'
+  ].join('\n');
   return `<a class="wa-btn" href="https://wa.me/${phone}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Recordar por WhatsApp</a>`;
 }
 const STATUS_LABEL = {presente:'Presente', ausente:'Ausente', reprogramada:'Reprogramada'};
