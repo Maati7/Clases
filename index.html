@@ -412,6 +412,53 @@ input:focus, select:focus, textarea:focus{
 }
 .report-actions{display:flex; gap:8px; flex-wrap:wrap;}
 
+.backup-footer{
+  max-width:760px; margin:18px auto 0; padding:0 4px;
+  font-size:12.5px; color:var(--ink-soft);
+}
+.backup-footer summary{cursor:pointer; text-align:center; padding:10px; list-style:none;}
+.backup-footer summary::-webkit-details-marker{display:none;}
+.backup-footer summary::after{content:' ▾';}
+.backup-footer[open] summary::after{content:' ▴';}
+.backup-footer[open]{background:var(--page); border-radius:4px; padding:4px 16px 16px;}
+
+.row.archived{opacity:.7;}
+.archive-toggle{margin-top:14px;}
+.offday-past{opacity:.5;}
+.next-off{font-size:12.5px; color:var(--ink-soft); margin-top:10px;}
+
+#help-btn{
+  position:absolute; right:18px; bottom:18px;
+  width:32px; height:32px; border-radius:50%;
+  border:1px solid rgba(251,247,240,.5); background:transparent;
+  color:var(--page); font-family:'Fraunces',serif; font-size:16px; cursor:pointer;
+}
+
+.tutorial{
+  position:fixed; inset:0; z-index:50;
+  background:rgba(43,36,32,.55);
+  display:none; align-items:flex-end; justify-content:center;
+  padding:16px; padding-bottom:calc(16px + env(safe-area-inset-bottom, 0px));
+}
+.tutorial.show{display:flex;}
+.tutorial-card{
+  background:var(--page); width:100%; max-width:440px;
+  border-radius:10px; padding:24px 22px 18px;
+  box-shadow:0 18px 40px rgba(0,0,0,.25);
+  animation:tutIn .25s ease;
+}
+@keyframes tutIn{from{transform:translateY(24px); opacity:0;} to{transform:none; opacity:1;}}
+@media (prefers-reduced-motion: reduce){ .tutorial-card{animation:none;} }
+.tutorial-emoji{font-size:34px; line-height:1;}
+.tutorial-card h3{font-family:'Fraunces',serif; font-weight:500; font-size:21px; margin:12px 0 8px;}
+.tutorial-card p{font-size:14.5px; line-height:1.55; margin:0 0 6px;}
+.tutorial-card p.tip{font-size:13px; color:var(--ink-soft);}
+.tutorial-dots{display:flex; gap:6px; margin:16px 0 14px;}
+.tutorial-dots span{width:7px; height:7px; border-radius:50%; background:var(--page-line);}
+.tutorial-dots span.on{background:var(--cover); width:18px; border-radius:4px;}
+.tutorial-nav{display:flex; justify-content:space-between; align-items:center; gap:10px;}
+.tutorial-nav .right{display:flex; gap:8px;}
+
 @media (max-width: 560px){
   body{padding:0;}
   .book{border-radius:0; box-shadow:none; min-height:100vh;}
@@ -419,6 +466,7 @@ input:focus, select:focus, textarea:focus{
   .cover h1{font-size:24px;}
   .cover p{font-size:12.5px;}
   #save-indicator{top:12px; right:14px; font-size:10.5px;}
+  #help-btn{right:14px; bottom:14px; width:30px; height:30px; font-size:15px;}
 
   nav{position:sticky; top:0; z-index:5;}
   nav button{padding:13px 6px; font-size:12px;}
@@ -452,6 +500,7 @@ input:focus, select:focus, textarea:focus{
   .att-btn{padding:12px 6px; font-size:12px;}
 
   .backup-buttons{flex-direction:column;}
+  .backup-footer{margin:0; padding:12px 16px 40px;}
   .backup-buttons .btn{width:100%;}
 
   .select-student select{font-size:16px;}
@@ -463,6 +512,7 @@ input:focus, select:focus, textarea:focus{
 <div class="book">
   <div class="cover">
     <span id="save-indicator">Guardado ✓</span>
+    <button type="button" id="help-btn" aria-label="Ver guía de uso">?</button>
     <h1>Cuaderno de clases</h1>
     <p>Alumnos, pagos, asistencia y seguimiento en un solo lugar</p>
   </div>
@@ -478,9 +528,35 @@ input:focus, select:focus, textarea:focus{
   <main id="main"></main>
 </div>
 
+<div class="tutorial" id="tutorial" role="dialog" aria-modal="true" aria-labelledby="tut-title">
+  <div class="tutorial-card">
+    <div class="tutorial-emoji" id="tut-emoji"></div>
+    <h3 id="tut-title"></h3>
+    <div id="tut-body"></div>
+    <div class="tutorial-dots" id="tut-dots"></div>
+    <div class="tutorial-nav">
+      <button type="button" class="btn link" id="tut-skip">Saltar</button>
+      <div class="right">
+        <button type="button" class="btn secondary small" id="tut-prev">Anterior</button>
+        <button type="button" class="btn small" id="tut-next">Siguiente</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<details class="backup-footer">
+  <summary>Copia de seguridad</summary>
+  <p class="row-sub">Los datos se guardan en la nube y se sincronizan entre dispositivos. Igual conviene bajar un backup de tanto en tanto, por las dudas.</p>
+  <div class="backup-buttons">
+    <button type="button" class="btn secondary small" id="export-btn">Descargar backup (.json)</button>
+    <button type="button" class="btn secondary small" id="import-btn">Restaurar backup</button>
+    <input type="file" id="import-file" accept="application/json" style="display:none;">
+  </div>
+</details>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, doc, setDoc, onSnapshot, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD5aq_aSrT3wB2etn0O9CKUQz1wpVGXxFc",
@@ -492,13 +568,15 @@ const firebaseConfig = {
 };
 
 const fbApp = initializeApp(firebaseConfig);
-const db = getFirestore(fbApp);
+// Caché local: la app abre al instante y funciona sin señal, aunque haya varias pestañas abiertas
+const db = initializeFirestore(fbApp, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+});
 const docRef = doc(db, 'clases-ingles', 'data');
-try{ await enableIndexedDbPersistence(db); }catch(e){ /* varias pestañas abiertas u otro motivo, seguimos sin cache offline */ }
 
 const DAYS = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 let dataLoaded = false;
-let state = { students: [], payments: [], attendance: [], topics: [], grades: [] };
+let state = { students: [], payments: [], attendance: [], topics: [], grades: [], offDays: [] };
 let activeTab = 'resumen';
 let editingStudentId = null;
 let selectedPagoStudent = null;
@@ -509,10 +587,28 @@ let viewingStudentId = null;   // ficha abierta en Alumnos
 let reportMonth = null;        // mes del informe en la ficha
 let attendanceStatusChoice = 'presente';
 
-let suppressNextSnapshotRender = false;
+let showArchived = false;
+let pendingRender = false;
+
+// Si está escribiendo en un formulario, esperamos a que termine antes de redibujar
+function isTyping(){
+  const el = document.activeElement;
+  const main = document.getElementById('main');
+  if(!el || !main || !main.contains(el)) return false;
+  if(el.tagName === 'TEXTAREA') return true;
+  if(el.tagName === 'INPUT') return !['checkbox','radio','button','submit','file'].includes(el.type);
+  return false;
+}
+document.getElementById('main').addEventListener('focusout', ()=>{
+  setTimeout(()=>{
+    if(pendingRender && !isTyping()){ pendingRender = false; render(); }
+  }, 150);
+});
 
 function subscribeToData(){
   onSnapshot(docRef, snap=>{
+    // Eco de un guardado propio: la pantalla ya está actualizada
+    if(dataLoaded && snap.metadata.hasPendingWrites) return;
     if(snap.exists()){
       const parsed = snap.data();
       state.students = parsed.students || [];
@@ -520,9 +616,13 @@ function subscribeToData(){
       state.attendance = parsed.attendance || [];
       state.topics = parsed.topics || [];
       state.grades = parsed.grades || [];
+      state.offDays = parsed.offDays || [];
     }
+    const first = !dataLoaded;
     dataLoaded = true;
+    if(!first && isTyping()){ pendingRender = true; return; }
     render();
+    if(first) maybeShowTutorial();
   }, err=>{
     console.error('Error de sincronización', err);
     flashSaved(false);
@@ -636,6 +736,21 @@ function waLink(s){
   ].join('\n');
   return `<a class="wa-btn" href="https://wa.me/${phone}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Recordar por WhatsApp</a>`;
 }
+function activeStudents(){ return state.students.filter(s=>!s.archived); }
+// Devuelve un alumno activo válido para los selectores
+function pickStudent(id){
+  const act = activeStudents();
+  return act.some(s=>s.id===id) ? id : (act[0] ? act[0].id : null);
+}
+function offDayFor(iso){
+  return state.offDays.find(o=>o.from <= iso && iso <= (o.to || o.from));
+}
+function nextOffDay(iso){
+  return state.offDays.filter(o=>o.from > iso).sort((a,b)=>a.from.localeCompare(b.from))[0];
+}
+function offRangeText(o){
+  return (!o.to || o.to===o.from) ? formatDate(o.from) : `${formatDate(o.from)} al ${formatDate(o.to)}`;
+}
 const STATUS_LABEL = {presente:'Presente', ausente:'Ausente', reprogramada:'Reprogramada'};
 const STATUS_CLASS = {presente:'sage', ausente:'clay', reprogramada:'gold'};
 function formatDate(iso){
@@ -709,7 +824,9 @@ function renderResumen(){
   if(isCurrent){
     const today = todayISO();
     const dayName = todayDayName();
-    const hoy = state.students
+    const off = offDayFor(today);
+    const next = nextOffDay(today);
+    const hoy = activeStudents()
       .filter(s=>studentDays(s).includes(dayName))
       .sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 
@@ -730,11 +847,14 @@ function renderResumen(){
       <div class="section-block">
         <h3 class="calc-title">Hoy, <span class="today-day">${dayName.toLowerCase()}</span></h3>
         <div class="ledger">
-          ${hoyRows || '<div class="empty">Hoy no hay clases agendadas</div>'}
+          ${off
+            ? `<div class="empty">Hoy no hay clases: ${escapeHtml(off.label || 'día libre')} 🌴</div>`
+            : (hoyRows || '<div class="empty">Hoy no hay clases agendadas</div>')}
         </div>
+        ${next ? `<div class="next-off">Próximo descanso: ${escapeHtml(next.label || 'día libre')} (${offRangeText(next)})</div>` : ''}
       </div>`;
 
-    const deben = state.students.map(s=>({s, st:paymentStatus(s.id)})).filter(x=>x.st.status==='debe');
+    const deben = activeStudents().map(s=>({s, st:paymentStatus(s.id)})).filter(x=>x.st.status==='debe');
     const debenRows = deben.map(x=>`
       <div class="row">
         <div class="row-main">
@@ -773,15 +893,6 @@ function renderResumen(){
     ${hoyBlock}
     ${pendientesBlock}
 
-    <div class="section-block">
-      <h3 class="calc-title">Copia de seguridad</h3>
-      <p class="row-sub">Los datos se guardan en la nube y se sincronizan entre dispositivos. Igual conviene bajar un backup de tanto en tanto, por las dudas.</p>
-      <div class="backup-buttons">
-        <button type="button" class="btn secondary small" id="export-btn">Descargar backup (.json)</button>
-        <button type="button" class="btn secondary small" id="import-btn">Restaurar backup</button>
-        <input type="file" id="import-file" accept="application/json" style="display:none;">
-      </div>
-    </div>
   `;
 }
 
@@ -805,7 +916,7 @@ function renderFicha(s){
     <button type="button" class="btn link" id="ficha-back" style="margin-bottom:14px;">‹ Volver a alumnos</button>
     <div class="ficha-head">
       <h2 class="section-title">${escapeHtml(s.name)}</h2>
-      <span class="badge ${st.status==='aldia' ? 'sage':'clay'}">${st.label}</span>
+      ${s.archived ? '<span class="badge gold">Archivado</span>' : `<span class="badge ${st.status==='aldia' ? 'sage':'clay'}">${st.label}</span>`}
     </div>
     <div class="ficha-info">
       ${escapeHtml(scheduleText(s))}${priceText(s)}<br>
@@ -814,7 +925,9 @@ function renderFicha(s){
     </div>
     <div class="ficha-actions">
       <button type="button" class="btn secondary small" data-edit-student="${s.id}">Editar datos</button>
-      ${waLink(s)}
+      ${s.archived
+        ? `<button type="button" class="btn secondary small" data-unarchive-student="${s.id}">Reactivar</button>`
+        : `<button type="button" class="btn secondary small" data-archive-student="${s.id}">Archivar</button>${waLink(s)}`}
     </div>
     <div class="summary">
       <div class="card"><div class="num">${currency(totalPagado)}</div><div class="lbl">Total pagado</div></div>
@@ -924,21 +1037,27 @@ function renderAlumnos(){
   }
   const editing = editingStudentId ? state.students.find(s=>s.id===editingStudentId) : null;
 
-  const rows = state.students.map(s=>{
+  const archivedCount = state.students.filter(s=>s.archived).length;
+  if(archivedCount===0) showArchived = false;
+  const list = state.students.filter(s=>showArchived ? s.archived : !s.archived);
+  const rows = list.map(s=>{
     const st = paymentStatus(s.id);
     return `
-    <div class="row" data-student-row="${s.id}">
+    <div class="row ${s.archived ? 'archived':''}" data-student-row="${s.id}">
       <div class="row-main">
         <div class="row-top">
           <button type="button" class="name-link row-name" data-open-student="${s.id}">${escapeHtml(s.name)}</button>
-          <span class="badge ${st.status==='aldia' ? 'sage':'clay'}">${st.label}</span>
+          ${s.archived ? '<span class="badge gold">Archivado</span>' : `<span class="badge ${st.status==='aldia' ? 'sage':'clay'}">${st.label}</span>`}
         </div>
         <div class="row-sub">${escapeHtml(scheduleText(s))}${priceText(s)}</div>
         ${s.objectives ? `<div class="row-note">Objetivo: ${escapeHtml(s.objectives)}</div>` : ''}
       </div>
       <div class="row-actions">
-        <button class="icon-btn" data-edit-student="${s.id}">Editar</button>
-        <button class="icon-btn" data-del-student="${s.id}">Eliminar</button>
+        ${s.archived
+          ? `<button class="icon-btn" data-unarchive-student="${s.id}">Reactivar</button>
+             <button class="icon-btn" data-del-student="${s.id}">Eliminar</button>`
+          : `<button class="icon-btn" data-edit-student="${s.id}">Editar</button>
+             <button class="icon-btn" data-archive-student="${s.id}">Archivar</button>`}
       </div>
     </div>
   `;
@@ -999,19 +1118,21 @@ function renderAlumnos(){
       <button type="submit" class="btn">${editing ? 'Guardar cambios' : 'Agregar alumno'}</button>
       ${editing ? '<button type="button" class="btn link" id="cancel-edit" style="margin-left:10px;">Cancelar edición</button>' : ''}
     </form>
+    ${showArchived ? '<h3 class="calc-title" style="margin-top:22px;">Alumnos archivados</h3>' : ''}
     <div class="ledger" id="student-list">
-      ${rows || '<div class="empty">Todavía no cargaste alumnos</div>'}
+      ${rows || `<div class="empty">${showArchived ? 'No hay alumnos archivados' : 'Todavía no cargaste alumnos'}</div>`}
     </div>
+    ${archivedCount ? `<button type="button" class="btn link archive-toggle" id="toggle-archived">${showArchived ? '‹ Volver a alumnos activos' : `Ver archivados (${archivedCount})`}</button>` : ''}
   `;
 }
 
 /* ---------- PAGOS ---------- */
 function renderPagos(){
-  if(state.students.length===0){
+  if(activeStudents().length===0){
     return `<h2 class="section-title">Pagos</h2><div class="empty">Cargá primero un alumno en la pestaña Alumnos</div>`;
   }
-  const options = state.students.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
-  const selected = selectedPagoStudent || state.students[0].id;
+  const options = activeStudents().map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  const selected = selectedPagoStudent = pickStudent(selectedPagoStudent);
   const studentPayments = state.payments.filter(p=>p.studentId===selected).sort((a,b)=>b.date.localeCompare(a.date));
   const total = studentPayments.reduce((sum,p)=>sum+Number(p.amount||0),0);
   const last = studentPayments[0];
@@ -1026,7 +1147,7 @@ function renderPagos(){
     </div>
   `).join('');
 
-  const totalAlumnos = state.students.filter(st=>!isPorClase(st)).reduce((s,st)=>s+Number(st.price||0),0);
+  const totalAlumnos = activeStudents().filter(st=>!isPorClase(st)).reduce((s,st)=>s+Number(st.price||0),0);
   const selStudent = state.students.find(st=>st.id===selected);
   const porClase = isPorClase(selStudent);
   const bal = porClase ? claseBalance(selStudent) : null;
@@ -1091,11 +1212,11 @@ function renderPagos(){
 
 /* ---------- ASISTENCIA ---------- */
 function renderAsistencia(){
-  if(state.students.length===0){
+  if(activeStudents().length===0){
     return `<h2 class="section-title">Asistencia</h2><div class="empty">Cargá primero un alumno en la pestaña Alumnos</div>`;
   }
-  const options = state.students.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
-  const selected = selectedAsisStudent || state.students[0].id;
+  const options = activeStudents().map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  const selected = selectedAsisStudent = pickStudent(selectedAsisStudent);
   const records = state.attendance.filter(a=>a.studentId===selected).sort((a,b)=>b.date.localeCompare(a.date));
 
   const statusLabel = STATUS_LABEL;
@@ -1140,16 +1261,59 @@ function renderAsistencia(){
     <div class="ledger" style="margin-top:8px;">
       ${rows || '<div class="empty">Todavía no hay registros de asistencia</div>'}
     </div>
+    ${renderOffDays()}
+  `;
+}
+
+function renderOffDays(){
+  const today = todayISO();
+  const list = [...state.offDays].sort((a,b)=>a.from.localeCompare(b.from));
+  const rows = list.map(o=>`
+    <div class="row ${(o.to||o.from) < today ? 'offday-past':''}">
+      <div class="row-main">
+        <div class="row-name">${escapeHtml(o.label || 'Día libre')}</div>
+        <div class="row-sub">${offRangeText(o)}</div>
+      </div>
+      <button class="icon-btn" data-del-off="${o.id}">Eliminar</button>
+    </div>
+  `).join('');
+  return `
+    <div class="section-block">
+      <h3 class="calc-title">Feriados y vacaciones</h3>
+      <p class="row-sub" style="margin:0 0 12px;">Los días que cargues acá no muestran clases en "Hoy".</p>
+      <form id="off-form">
+        <div class="form-row">
+          <div class="field">
+            <label>Desde</label>
+            <input type="date" name="from" required value="${today}">
+          </div>
+          <div class="field">
+            <label>Hasta (si es un solo día, dejalo vacío)</label>
+            <input type="date" name="to">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label>Motivo</label>
+            <input type="text" name="label" placeholder="Ej: Feriado, vacaciones de invierno">
+          </div>
+        </div>
+        <button type="submit" class="btn small">Agregar</button>
+      </form>
+      <div class="ledger" style="margin-top:14px;">
+        ${rows || '<div class="empty">No cargaste feriados ni vacaciones</div>'}
+      </div>
+    </div>
   `;
 }
 
 /* ---------- SEGUIMIENTO ---------- */
 function renderSeguimiento(){
-  if(state.students.length===0){
+  if(activeStudents().length===0){
     return `<h2 class="section-title">Seguimiento</h2><div class="empty">Cargá primero un alumno en la pestaña Alumnos</div>`;
   }
-  const options = state.students.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
-  const selected = selectedSeguimientoStudent || state.students[0].id;
+  const options = activeStudents().map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  const selected = selectedSeguimientoStudent = pickStudent(selectedSeguimientoStudent);
   const student = state.students.find(s=>s.id===selected);
 
   const topics = state.topics.filter(t=>t.studentId===selected).sort((a,b)=>b.date.localeCompare(a.date));
@@ -1350,6 +1514,55 @@ function attachHandlers(){
     });
   }
 
+  // Archivar / reactivar
+  document.querySelectorAll('[data-archive-student]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const s = state.students.find(x=>x.id===btn.dataset.archiveStudent);
+      if(!confirm(`¿Archivar a ${s.name}? Se guarda todo su historial y lo podés reactivar cuando quieras.`)) return;
+      s.archived = true;
+      saveData();
+      render();
+    });
+  });
+  document.querySelectorAll('[data-unarchive-student]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const s = state.students.find(x=>x.id===btn.dataset.unarchiveStudent);
+      delete s.archived;
+      saveData();
+      render();
+    });
+  });
+  const toggleArchived = document.getElementById('toggle-archived');
+  if(toggleArchived){
+    toggleArchived.addEventListener('click', ()=>{
+      showArchived = !showArchived;
+      render();
+    });
+  }
+
+  // Feriados y vacaciones
+  const offForm = document.getElementById('off-form');
+  if(offForm){
+    offForm.addEventListener('submit', e=>{
+      e.preventDefault();
+      const fd = new FormData(offForm);
+      const from = fd.get('from');
+      let to = fd.get('to') || from;
+      if(to < from){ alert('La fecha "hasta" no puede ser anterior a "desde"'); return; }
+      state.offDays.push({id: uid(), from, to, label: fd.get('label').trim()});
+      saveData();
+      render();
+    });
+  }
+  document.querySelectorAll('[data-del-off]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(!confirm('¿Eliminar este día libre?')) return;
+      state.offDays = state.offDays.filter(o=>o.id!==btn.dataset.delOff);
+      saveData();
+      render();
+    });
+  });
+
   // Ficha
   document.querySelectorAll('[data-open-student]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -1406,7 +1619,7 @@ function attachHandlers(){
   // Pagos
   const pagoSelect = document.getElementById('pago-student-select');
   if(pagoSelect){
-    pagoSelect.value = selectedPagoStudent || state.students[0].id;
+    pagoSelect.value = selectedPagoStudent;
     pagoSelect.addEventListener('change', ()=>{
       selectedPagoStudent = pagoSelect.value;
       render();
@@ -1442,7 +1655,7 @@ function attachHandlers(){
   const calcUseTotal = document.getElementById('calc-use-total');
   if(calcUseTotal){
     calcUseTotal.addEventListener('click', ()=>{
-      const total = state.students.filter(st=>!isPorClase(st)).reduce((s,st)=>s+Number(st.price||0),0);
+      const total = activeStudents().filter(st=>!isPorClase(st)).reduce((s,st)=>s+Number(st.price||0),0);
       document.getElementById('calc-price').value = total;
     });
   }
@@ -1478,7 +1691,7 @@ function attachHandlers(){
   // Asistencia
   const asisSelect = document.getElementById('asis-student-select');
   if(asisSelect){
-    asisSelect.value = selectedAsisStudent || state.students[0].id;
+    asisSelect.value = selectedAsisStudent;
     asisSelect.addEventListener('change', ()=>{
       selectedAsisStudent = asisSelect.value;
       render();
@@ -1526,7 +1739,7 @@ function attachHandlers(){
   // Seguimiento
   const segSelect = document.getElementById('seg-student-select');
   if(segSelect){
-    segSelect.value = selectedSeguimientoStudent || state.students[0].id;
+    segSelect.value = selectedSeguimientoStudent;
     segSelect.addEventListener('change', ()=>{
       selectedSeguimientoStudent = segSelect.value;
       render();
@@ -1596,6 +1809,60 @@ function attachHandlers(){
     });
   });
 
+}
+
+/* ---------- GUÍA DE USO ---------- */
+const TUTORIAL = [
+  {e:'👋', t:'¡Bienvenida a tu cuaderno!', b:['Acá tenés todo en un solo lugar: alumnos, pagos, asistencia y seguimiento.', 'Te muestro en un minuto cómo usarlo.'], tip:'Todo se guarda solo en la nube, y lo ves igual desde el celu o la compu.'},
+  {e:'🧑‍🎓', t:'Cargá a tus alumnos', b:['En <b>Alumnos</b> completás nombre, teléfono, días, horario y precio.', 'En <b>Forma de cobro</b> elegís si paga por mes o por clase suelta.'], tip:'Tocá el nombre de un alumno para abrir su ficha con todo su historial.'},
+  {e:'📅', t:'Tu día en "Hoy"', b:['En <b>Resumen</b> aparecen los alumnos que tienen clase hoy, ordenados por horario.', 'Marcás Presente, Ausente o Reprogramada con un toque.'], tip:'Si te equivocás, tocá otro botón y se corrige.'},
+  {e:'💰', t:'Pagos', b:['En <b>Pagos</b> registrás lo que te pagan. A los alumnos por clase la app les calcula el saldo y te completa el monto.', 'Los que deben aparecen en el Resumen, con un botón para recordarles por WhatsApp.'], tip:'Para que funcione el WhatsApp, cargá el teléfono con la característica y sin el 15.'},
+  {e:'📝', t:'Seguimiento', b:['En <b>Seguimiento</b> anotás el objetivo de cada alumno, los temas que van viendo y las notas de las evaluaciones.'], tip:'Con eso se arma solo el informe mensual.'},
+  {e:'📘', t:'Informe mensual', b:['Al final de la ficha de cada alumno elegís el mes y la app arma un resumen de clases, temas y notas.', 'Lo mandás por WhatsApp al alumno o a los padres.'], tip:''},
+  {e:'🌴', t:'Feriados y vacaciones', b:['En <b>Asistencia</b>, abajo de todo, cargás los días sin clase.', 'Esos días "Hoy" no muestra clases, y en el Resumen ves cuándo es tu próximo descanso.'], tip:''},
+  {e:'🗂️', t:'Archivar alumnos', b:['Cuando un alumno deja, en vez de borrarlo tocá <b>Archivar</b>. Desaparece de las listas pero conserva todo.', 'Si vuelve, lo encontrás en "Ver archivados" y lo reactivás.'], tip:''},
+  {e:'✨', t:'¡Listo!', b:['Abajo de todo está la copia de seguridad, por si alguna vez la necesitás.'], tip:'Podés volver a ver esta guía cuando quieras tocando el <b>?</b> de arriba.'}
+];
+let tutStep = 0;
+function showTutorial(){
+  tutStep = 0;
+  drawTutorial();
+  document.getElementById('tutorial').classList.add('show');
+}
+function closeTutorial(){
+  document.getElementById('tutorial').classList.remove('show');
+  try{ localStorage.setItem('cuaderno-guia-vista','1'); }catch(e){}
+}
+function drawTutorial(){
+  const st = TUTORIAL[tutStep];
+  document.getElementById('tut-emoji').textContent = st.e;
+  document.getElementById('tut-title').textContent = st.t;
+  document.getElementById('tut-body').innerHTML =
+    st.b.map(x=>`<p>${x}</p>`).join('') + (st.tip ? `<p class="tip">${st.tip}</p>` : '');
+  document.getElementById('tut-dots').innerHTML =
+    TUTORIAL.map((_,i)=>`<span class="${i===tutStep ? 'on':''}"></span>`).join('');
+  const last = tutStep === TUTORIAL.length-1;
+  document.getElementById('tut-prev').style.visibility = tutStep===0 ? 'hidden' : 'visible';
+  document.getElementById('tut-skip').style.visibility = last ? 'hidden' : 'visible';
+  document.getElementById('tut-next').textContent = last ? '¡Empezar!' : 'Siguiente';
+}
+function maybeShowTutorial(){
+  let seen = false;
+  try{ seen = localStorage.getItem('cuaderno-guia-vista') === '1'; }catch(e){}
+  if(!seen) showTutorial();
+}
+document.getElementById('help-btn').addEventListener('click', showTutorial);
+document.getElementById('tut-skip').addEventListener('click', closeTutorial);
+document.getElementById('tut-prev').addEventListener('click', ()=>{ if(tutStep>0){ tutStep--; drawTutorial(); } });
+document.getElementById('tut-next').addEventListener('click', ()=>{
+  if(tutStep < TUTORIAL.length-1){ tutStep++; drawTutorial(); }
+  else closeTutorial();
+});
+document.getElementById('tutorial').addEventListener('click', e=>{
+  if(e.target.id==='tutorial') closeTutorial();
+});
+
+function setupBackup(){
   // Resumen: backup
   const exportBtn = document.getElementById('export-btn');
   if(exportBtn){
@@ -1629,6 +1896,7 @@ function attachHandlers(){
           state.attendance = parsed.attendance || [];
           state.topics = parsed.topics || [];
           state.grades = parsed.grades || [];
+          state.offDays = parsed.offDays || [];
           saveData();
           render();
         }catch(e){
@@ -1640,7 +1908,7 @@ function attachHandlers(){
     });
   }
 }
-
+setupBackup();
 subscribeToData();
 </script>
 </body>
