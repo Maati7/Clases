@@ -386,6 +386,20 @@ input:focus, select:focus, textarea:focus{
 .day-time input{width:auto; min-width:110px; padding:7px 8px;}
 .day-time[hidden]{display:none;}
 
+.summary .card.pending .num{color:var(--clay);}
+.raise-list{margin:14px 0 12px; border-top:1px solid var(--page-line);}
+.raise-row{
+  display:flex; align-items:center; gap:12px;
+  padding:11px 2px; border-bottom:1px solid var(--page-line); cursor:pointer;
+}
+.raise-row input{width:20px; height:20px; padding:0; flex:none; accent-color:var(--cover);}
+.raise-name{flex:1; min-width:0; font-family:'Fraunces',serif; font-size:15px;}
+.raise-name small{display:block; font-family:'Inter',sans-serif; font-size:11.5px; color:var(--ink-soft);}
+.raise-prices{font-size:13px; color:var(--ink-soft); white-space:nowrap; text-align:right;}
+.raise-prices b{color:var(--ink); font-weight:600;}
+.raise-row.off .raise-prices b{color:var(--ink-soft); font-weight:400;}
+.raise-actions{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;}
+
 .month-nav{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:18px;}
 .month-nav h2{margin:0; text-align:center;}
 .month-nav button{
@@ -506,6 +520,7 @@ input:focus, select:focus, textarea:focus{
 
   .summary{gap:8px;}
   .summary .card{padding:10px 11px;}
+  .summary.four{grid-template-columns:repeat(2, 1fr);}
   .summary .card .num{font-size:17px; white-space:nowrap;}
   .summary .card .lbl{font-size:11px;}
 
@@ -854,6 +869,15 @@ function renderResumen(){
   let hoyBlock = '';
   let pendientesBlock = '';
 
+  // Lo que falta cobrar este mes: mensuales sin pagar (o con pago parcial) + saldo de clases sueltas
+  const aCobrar = isCurrent ? activeStudents().reduce((sum, st)=>{
+    if(isPorClase(st)) return sum + Math.max(0, claseBalance(st).saldo);
+    const pagadoMes = state.payments
+      .filter(p=>p.studentId===st.id && p.date.slice(0,7)===monthKey)
+      .reduce((t,p)=>t+Number(p.amount||0), 0);
+    return sum + Math.max(0, Number(st.price||0) - pagadoMes);
+  }, 0) : 0;
+
   if(isCurrent){
     const today = todayISO();
     const dayName = todayDayName();
@@ -916,8 +940,9 @@ function renderResumen(){
       <h2 class="section-title">${capFirst(monthLabel(monthKey))}</h2>
       <button type="button" id="month-next" aria-label="Mes siguiente" ${isCurrent ? 'disabled':''}>›</button>
     </div>
-    <div class="summary">
+    <div class="summary ${isCurrent ? 'four' : ''}">
       <div class="card"><div class="num">${currency(cobradoMes)}</div><div class="lbl">Cobrado ${isCurrent ? 'este mes' : 'en el mes'}</div></div>
+      ${isCurrent ? `<div class="card ${aCobrar > 0 ? 'pending' : ''}"><div class="num">${currency(aCobrar)}</div><div class="lbl">A cobrar</div></div>` : ''}
       <div class="card"><div class="num">${clasesMes}</div><div class="lbl">Clases dadas</div></div>
       <div class="card"><div class="num">${ausenciasMes}</div><div class="lbl">Ausencias</div></div>
     </div>
@@ -1244,6 +1269,49 @@ function renderPagos(){
         <button type="button" class="btn secondary" id="calc-btn">Calcular</button>
       </div>
       <div class="calc-result" id="calc-result"></div>
+    </div>
+
+    ${renderRaise()}
+  `;
+}
+
+function roundUp(n, step){ return step ? Math.ceil(n / step) * step : Math.round(n); }
+
+function renderRaise(){
+  const list = activeStudents().filter(st=>Number(st.price||0) > 0)
+    .sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  if(!list.length) return '';
+  const rows = list.map(st=>`
+    <label class="raise-row">
+      <input type="checkbox" data-raise-id="${st.id}" checked>
+      <span class="raise-name">${escapeHtml(st.name)}<small>${isPorClase(st) ? 'por clase' : 'mensual'}</small></span>
+      <span class="raise-prices" data-raise-preview="${st.id}">${currency(st.price)}</span>
+    </label>
+  `).join('');
+  return `
+    <div class="calc-box">
+      <h3 class="calc-title">Aplicar aumento a los precios</h3>
+      <p class="row-sub" style="margin:-6px 0 14px;">Actualiza el precio de los alumnos que marques. Los pagos y las clases ya registrados no cambian.</p>
+      <div class="form-row">
+        <div class="field">
+          <label>% de aumento</label>
+          <input type="number" id="raise-percent" min="0" step="0.1" placeholder="Ej: 10" inputmode="decimal">
+        </div>
+        <div class="field">
+          <label>Redondear para arriba a</label>
+          <select id="raise-round">
+            <option value="0">Sin redondear</option>
+            <option value="100">$100</option>
+            <option value="500" selected>$500</option>
+            <option value="1000">$1.000</option>
+          </select>
+        </div>
+      </div>
+      <div class="raise-list">${rows}</div>
+      <div class="raise-actions">
+        <button type="button" class="btn link" id="raise-toggle-all">Desmarcar todos</button>
+        <button type="button" class="btn" id="raise-apply">Aplicar aumento</button>
+      </div>
     </div>
   `;
 }
@@ -1706,6 +1774,47 @@ function attachHandlers(){
       render();
     });
   });
+
+  // Aplicar aumento
+  const raisePercent = document.getElementById('raise-percent');
+  if(raisePercent){
+    const raiseRound = document.getElementById('raise-round');
+    const boxes = [...document.querySelectorAll('[data-raise-id]')];
+    const toggleAll = document.getElementById('raise-toggle-all');
+    const newPrice = st => roundUp(Number(st.price||0) * (1 + Number(raisePercent.value||0)/100), Number(raiseRound.value));
+    const updatePreview = ()=>{
+      const pct = Number(raisePercent.value||0);
+      boxes.forEach(cb=>{
+        const st = state.students.find(x=>x.id===cb.dataset.raiseId);
+        const cell = document.querySelector(`[data-raise-preview="${st.id}"]`);
+        cb.closest('.raise-row').classList.toggle('off', !cb.checked);
+        cell.innerHTML = (pct > 0 && cb.checked)
+          ? `${currency(st.price)} → <b>${currency(newPrice(st))}</b>`
+          : currency(st.price);
+      });
+      toggleAll.textContent = boxes.every(cb=>cb.checked) ? 'Desmarcar todos' : 'Marcar todos';
+    };
+    raisePercent.addEventListener('input', updatePreview);
+    raiseRound.addEventListener('change', updatePreview);
+    boxes.forEach(cb=>cb.addEventListener('change', updatePreview));
+    toggleAll.addEventListener('click', ()=>{
+      const all = boxes.every(cb=>cb.checked);
+      boxes.forEach(cb=>{ cb.checked = !all; });
+      updatePreview();
+    });
+    document.getElementById('raise-apply').addEventListener('click', ()=>{
+      const pct = Number(raisePercent.value||0);
+      const chosen = boxes.filter(cb=>cb.checked).map(cb=>state.students.find(x=>x.id===cb.dataset.raiseId));
+      if(!(pct > 0)){ alert('Poné el porcentaje de aumento'); return; }
+      if(!chosen.length){ alert('Marcá al menos un alumno'); return; }
+      const n = chosen.length;
+      if(!confirm(`¿Aumentar ${pct}% el precio de ${n} ${n===1 ? 'alumno' : 'alumnos'}?`)) return;
+      chosen.forEach(st=>{ st.price = newPrice(st); });
+      saveData();
+      render();
+      alert('¡Listo! Precios actualizados.');
+    });
+  }
 
   const calcUseTotal = document.getElementById('calc-use-total');
   if(calcUseTotal){
