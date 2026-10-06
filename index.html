@@ -359,6 +359,47 @@ input:focus, select:focus, textarea:focus{
   margin-top:16px;
 }
 
+.day-checks{display:flex; flex-wrap:wrap; gap:6px;}
+.day-checks label{
+  display:inline-flex; align-items:center; gap:0;
+  font-size:13px; font-weight:500; color:var(--ink-soft);
+  border:1px solid var(--page-line); background:#fff; border-radius:20px;
+  padding:7px 12px; cursor:pointer; user-select:none;
+}
+.day-checks input{position:absolute; opacity:0; width:0; height:0;}
+.day-checks label:has(input:checked){background:var(--cover); border-color:var(--cover); color:var(--page);}
+
+.month-nav{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:18px;}
+.month-nav h2{margin:0; text-transform:capitalize;}
+.month-nav button{
+  border:1px solid var(--page-line); background:#fff; color:var(--cover);
+  width:40px; height:40px; border-radius:3px; font-size:18px; cursor:pointer;
+}
+.month-nav button:disabled{opacity:.35; cursor:default;}
+
+.today-row .att-buttons{width:100%; margin-top:8px;}
+.today-row .att-btn{padding:8px 6px; font-size:12px;}
+.today-day{text-transform:capitalize;}
+
+.wa-btn{
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:12.5px; font-weight:600; text-decoration:none;
+  padding:7px 12px; border-radius:3px;
+  border:1px solid var(--sage); color:var(--sage); background:var(--sage-bg);
+  white-space:nowrap;
+}
+
+.name-link{
+  border:none; background:none; padding:0; cursor:pointer; text-align:left;
+  font-family:'Fraunces',serif; font-size:16px; font-weight:500; color:var(--ink);
+  text-decoration:underline; text-decoration-color:var(--page-line); text-underline-offset:3px;
+}
+
+.ficha-head{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
+.ficha-head h2{margin:0;}
+.ficha-info{font-size:13px; color:var(--ink-soft); margin-bottom:16px; line-height:1.6;}
+.ficha-actions{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px;}
+
 @media (max-width: 560px){
   body{padding:0;}
   .book{border-radius:0; box-shadow:none; min-height:100vh;}
@@ -451,6 +492,8 @@ let editingStudentId = null;
 let selectedPagoStudent = null;
 let selectedAsisStudent = null;
 let selectedSeguimientoStudent = null;
+let viewMonth = null;          // null = mes actual
+let viewingStudentId = null;   // ficha abierta en Alumnos
 let attendanceStatusChoice = 'presente';
 
 let suppressNextSnapshotRender = false;
@@ -495,7 +538,53 @@ function flashSaved(ok){
 function uid(){
   return Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 }
-function todayISO(){ return new Date().toISOString().slice(0,10); }
+function localISO(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+// Fecha de hoy según la hora local del teléfono (no UTC)
+function todayISO(){ return localISO(new Date()); }
+function todayDayName(){ return DAYS[(new Date().getDay()+6)%7]; }
+function monthLabel(key){
+  const [y,m] = key.split('-').map(Number);
+  return new Date(y, m-1, 1).toLocaleDateString('es-AR', {month:'long', year:'numeric'});
+}
+function shiftMonth(key, delta){
+  const [y,m] = key.split('-').map(Number);
+  const d = new Date(y, m-1+delta, 1);
+  return localISO(d).slice(0,7);
+}
+// Compatibilidad: los alumnos viejos tenían un solo "day"
+function studentDays(s){
+  if(Array.isArray(s.days)) return s.days;
+  return s.day ? [s.day] : [];
+}
+function scheduleText(s){
+  const days = studentDays(s);
+  return `${days.length ? days.join(', ') : 'sin días'} · ${s.time || 'sin horario'}`;
+}
+// Convierte un número argentino a formato WhatsApp (549 + área + número)
+function waPhone(raw){
+  let d = String(raw||'').replace(/\D/g,'');
+  if(!d) return '';
+  if(d.startsWith('54')) d = d.slice(2);
+  if(d.startsWith('9')) d = d.slice(1);
+  if(d.startsWith('0')) d = d.slice(1);
+  return '549' + d;
+}
+function waLink(s){
+  const phone = waPhone(s.phone);
+  if(!phone) return '';
+  const first = (s.name||'').trim().split(' ')[0];
+  const mes = new Date().toLocaleDateString('es-AR', {month:'long'});
+  const precio = s.price ? ` (${currency(s.price)})` : '';
+  const msg = `Hola ${first}! Te escribo para recordarte el pago de las clases de ${mes}${precio}. ¡Gracias!`;
+  return `<a class="wa-btn" href="https://wa.me/${phone}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Recordar por WhatsApp</a>`;
+}
+const STATUS_LABEL = {presente:'Presente', ausente:'Ausente', reprogramada:'Reprogramada'};
+const STATUS_CLASS = {presente:'sage', ausente:'clay', reprogramada:'gold'};
 function formatDate(iso){
   const [y,m,d] = iso.split('-');
   return `${d}/${m}/${y}`;
@@ -519,6 +608,8 @@ function paymentStatus(studentId){
 
 function switchTab(tab){
   activeTab = tab;
+  viewingStudentId = null;
+  editingStudentId = null;
   document.querySelectorAll('.tab-btn').forEach(b=>{
     b.classList.toggle('active', b.dataset.tab === tab);
   });
@@ -544,41 +635,88 @@ function render(){
 
 /* ---------- RESUMEN ---------- */
 function renderResumen(){
-  const monthKey = todayISO().slice(0,7);
+  const currentMonth = todayISO().slice(0,7);
+  const monthKey = viewMonth || currentMonth;
+  const isCurrent = monthKey === currentMonth;
+
   const cobradoMes = state.payments.filter(p=>p.date.slice(0,7)===monthKey)
     .reduce((s,p)=>s+Number(p.amount||0),0);
   const clasesMes = state.attendance.filter(a=>a.date.slice(0,7)===monthKey && a.status==='presente').length;
   const ausenciasMes = state.attendance.filter(a=>a.date.slice(0,7)===monthKey && a.status==='ausente').length;
-  const deben = state.students.map(s=>({s, st:paymentStatus(s.id)})).filter(x=>x.st.status==='debe');
 
-  const debenRows = deben.map(x=>`
-    <div class="row">
-      <div class="row-main">
-        <div class="row-name">${escapeHtml(x.s.name)}</div>
-        <div class="row-sub">${x.st.label}</div>
+  let hoyBlock = '';
+  let pendientesBlock = '';
+
+  if(isCurrent){
+    const today = todayISO();
+    const dayName = todayDayName();
+    const hoy = state.students
+      .filter(s=>studentDays(s).includes(dayName))
+      .sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+
+    const hoyRows = hoy.map(s=>{
+      const rec = state.attendance.find(a=>a.studentId===s.id && a.date===today);
+      const btn = st => `<button type="button" class="att-btn ${st} ${rec && rec.status===st ? 'chosen':''}" data-quick-att="${s.id}" data-status="${st}">${STATUS_LABEL[st]}</button>`;
+      return `
+        <div class="row today-row" style="flex-direction:column; align-items:stretch;">
+          <div class="row-top">
+            <div class="row-name">${escapeHtml(s.name)}</div>
+            <span class="row-sub" style="margin:0;">${escapeHtml(s.time || 'sin horario')}</span>
+          </div>
+          <div class="att-buttons">${btn('presente')}${btn('ausente')}${btn('reprogramada')}</div>
+        </div>`;
+    }).join('');
+
+    hoyBlock = `
+      <div class="section-block">
+        <h3 class="calc-title">Hoy, <span class="today-day">${dayName.toLowerCase()}</span></h3>
+        <div class="ledger">
+          ${hoyRows || '<div class="empty">Hoy no hay clases agendadas</div>'}
+        </div>
+      </div>`;
+
+    const deben = state.students.map(s=>({s, st:paymentStatus(s.id)})).filter(x=>x.st.status==='debe');
+    const debenRows = deben.map(x=>`
+      <div class="row">
+        <div class="row-main">
+          <div class="row-name">${escapeHtml(x.s.name)}</div>
+          <div class="row-sub">${x.st.label}</div>
+        </div>
+        <div class="row-actions">
+          ${waLink(x.s)}
+          <span class="badge clay">Debe</span>
+        </div>
       </div>
-      <span class="badge clay">Debe</span>
-    </div>
-  `).join('');
+    `).join('');
+
+    pendientesBlock = `
+      <div class="section-block">
+        <h3 class="calc-title">Pagos pendientes</h3>
+        <div class="ledger">
+          ${debenRows || '<div class="empty">Nadie debe por ahora</div>'}
+        </div>
+      </div>`;
+  }
 
   return `
-    <h2 class="section-title">Resumen del mes</h2>
+    <div class="month-nav">
+      <button type="button" id="month-prev" aria-label="Mes anterior">‹</button>
+      <h2 class="section-title">${monthLabel(monthKey)}</h2>
+      <button type="button" id="month-next" aria-label="Mes siguiente" ${isCurrent ? 'disabled':''}>›</button>
+    </div>
     <div class="summary">
-      <div class="card"><div class="num">${currency(cobradoMes)}</div><div class="lbl">Cobrado este mes</div></div>
+      <div class="card"><div class="num">${currency(cobradoMes)}</div><div class="lbl">Cobrado ${isCurrent ? 'este mes' : 'en el mes'}</div></div>
       <div class="card"><div class="num">${clasesMes}</div><div class="lbl">Clases dadas</div></div>
       <div class="card"><div class="num">${ausenciasMes}</div><div class="lbl">Ausencias</div></div>
     </div>
+    ${isCurrent ? '' : '<button type="button" class="btn link" id="month-today">Volver al mes actual</button>'}
 
-    <div class="section-block">
-      <h3 class="calc-title">Pagos pendientes</h3>
-      <div class="ledger">
-        ${debenRows || '<div class="empty">Nadie debe por ahora</div>'}
-      </div>
-    </div>
+    ${hoyBlock}
+    ${pendientesBlock}
 
     <div class="section-block">
       <h3 class="calc-title">Copia de seguridad</h3>
-      <p class="row-sub">Como la app guarda los datos en este navegador, conviene bajar un backup de tanto en tanto.</p>
+      <p class="row-sub">Los datos se guardan en la nube y se sincronizan entre dispositivos. Igual conviene bajar un backup de tanto en tanto, por las dudas.</p>
       <div class="backup-buttons">
         <button type="button" class="btn secondary small" id="export-btn">Descargar backup (.json)</button>
         <button type="button" class="btn secondary small" id="import-btn">Restaurar backup</button>
@@ -588,8 +726,88 @@ function renderResumen(){
   `;
 }
 
+/* ---------- FICHA DE ALUMNO ---------- */
+function renderFicha(s){
+  const st = paymentStatus(s.id);
+  const byDate = (a,b)=>b.date.localeCompare(a.date);
+  const pays = state.payments.filter(p=>p.studentId===s.id).sort(byDate);
+  const att = state.attendance.filter(a=>a.studentId===s.id).sort(byDate);
+  const topics = state.topics.filter(t=>t.studentId===s.id).sort(byDate);
+  const grades = state.grades.filter(g=>g.studentId===s.id).sort(byDate);
+  const totalPagado = pays.reduce((sum,p)=>sum+Number(p.amount||0),0);
+  const presentes = att.filter(a=>a.status==='presente').length;
+  const ausentes = att.filter(a=>a.status==='ausente').length;
+
+  const list = (items, fn, emptyText) => items.length
+    ? items.map(fn).join('')
+    : `<div class="empty">${emptyText}</div>`;
+
+  return `
+    <button type="button" class="btn link" id="ficha-back" style="margin-bottom:14px;">‹ Volver a alumnos</button>
+    <div class="ficha-head">
+      <h2 class="section-title">${escapeHtml(s.name)}</h2>
+      <span class="badge ${st.status==='aldia' ? 'sage':'clay'}">${st.label}</span>
+    </div>
+    <div class="ficha-info">
+      ${escapeHtml(scheduleText(s))}${s.price ? ' · '+currency(s.price)+'/mes' : ''}<br>
+      ${s.phone ? 'Tel: '+escapeHtml(s.phone) : 'Sin teléfono cargado'}
+      ${s.objectives ? `<div class="row-note">Objetivo: ${escapeHtml(s.objectives)}</div>` : ''}
+    </div>
+    <div class="ficha-actions">
+      <button type="button" class="btn secondary small" data-edit-student="${s.id}">Editar datos</button>
+      ${waLink(s)}
+    </div>
+    <div class="summary">
+      <div class="card"><div class="num">${currency(totalPagado)}</div><div class="lbl">Total pagado</div></div>
+      <div class="card"><div class="num">${presentes}</div><div class="lbl">Clases dadas</div></div>
+      <div class="card"><div class="num">${ausentes}</div><div class="lbl">Ausencias</div></div>
+    </div>
+
+    <div class="section-block">
+      <h3 class="calc-title">Pagos</h3>
+      <div class="ledger">${list(pays, p=>`
+        <div class="row"><div class="row-main">
+          <div class="row-name">${currency(p.amount)}</div>
+          <div class="row-sub">${formatDate(p.date)}${p.note ? ' · '+escapeHtml(p.note) : ''}</div>
+        </div></div>`, 'Sin pagos registrados')}</div>
+    </div>
+
+    <div class="section-block">
+      <h3 class="calc-title">Asistencia</h3>
+      <div class="ledger">${list(att, a=>`
+        <div class="row"><div class="row-main">
+          <div class="row-name">${formatDate(a.date)}</div>
+          ${a.note ? `<div class="row-note">${escapeHtml(a.note)}</div>` : ''}
+        </div><span class="badge ${STATUS_CLASS[a.status]}">${STATUS_LABEL[a.status]}</span></div>`, 'Sin registros de asistencia')}</div>
+    </div>
+
+    <div class="section-block">
+      <h3 class="calc-title">Temas dados</h3>
+      <div class="ledger">${list(topics, t=>`
+        <div class="row"><div class="row-main">
+          <div class="row-name">${formatDate(t.date)}</div>
+          <div class="row-sub">${escapeHtml(t.topic)}</div>
+        </div></div>`, 'Sin temas cargados')}</div>
+    </div>
+
+    <div class="section-block">
+      <h3 class="calc-title">Notas de evaluaciones</h3>
+      <div class="ledger">${list(grades, g=>`
+        <div class="row"><div class="row-main">
+          <div class="row-name">${escapeHtml(g.grade)}</div>
+          <div class="row-sub">${formatDate(g.date)}${g.comment ? ' · '+escapeHtml(g.comment) : ''}</div>
+        </div></div>`, 'Sin notas cargadas')}</div>
+    </div>
+  `;
+}
+
 /* ---------- ALUMNOS ---------- */
 function renderAlumnos(){
+  if(viewingStudentId){
+    const viewing = state.students.find(s=>s.id===viewingStudentId);
+    if(viewing) return renderFicha(viewing);
+    viewingStudentId = null;
+  }
   const editing = editingStudentId ? state.students.find(s=>s.id===editingStudentId) : null;
 
   const rows = state.students.map(s=>{
@@ -598,10 +816,10 @@ function renderAlumnos(){
     <div class="row" data-student-row="${s.id}">
       <div class="row-main">
         <div class="row-top">
-          <div class="row-name">${escapeHtml(s.name)}</div>
+          <button type="button" class="name-link row-name" data-open-student="${s.id}">${escapeHtml(s.name)}</button>
           <span class="badge ${st.status==='aldia' ? 'sage':'clay'}">${st.label}</span>
         </div>
-        <div class="row-sub">${s.day} · ${s.time || 'sin horario'} · ${s.freq}x/sem${s.price ? ' · '+currency(s.price)+'/mes' : ''}</div>
+        <div class="row-sub">${escapeHtml(scheduleText(s))}${s.price ? ' · '+currency(s.price)+'/mes' : ''}</div>
         ${s.objectives ? `<div class="row-note">Objetivo: ${escapeHtml(s.objectives)}</div>` : ''}
       </div>
       <div class="row-actions">
@@ -627,23 +845,22 @@ function renderAlumnos(){
           <input type="text" name="name" required placeholder="Nombre del alumno" value="${editing ? escapeHtml(editing.name) : ''}">
         </div>
         <div class="field">
-          <label>Día</label>
-          <select name="day">
-            ${DAYS.map(d=>`<option value="${d}" ${editing && editing.day===d ? 'selected':''}>${d}</option>`).join('')}
-          </select>
+          <label>Teléfono (para WhatsApp)</label>
+          <input type="tel" name="phone" placeholder="Ej: 3415551234" value="${editing ? escapeHtml(editing.phone||'') : ''}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field" style="min-width:100%;">
+          <label>Días de clase</label>
+          <div class="day-checks">
+            ${DAYS.map(d=>`<label><input type="checkbox" name="days" value="${d}" ${editing && studentDays(editing).includes(d) ? 'checked':''}>${d}</label>`).join('')}
+          </div>
         </div>
       </div>
       <div class="form-row">
         <div class="field">
           <label>Horario</label>
           <input type="text" name="time" placeholder="Ej: 18:00" value="${editing ? escapeHtml(editing.time||'') : ''}">
-        </div>
-        <div class="field">
-          <label>Frecuencia semanal</label>
-          <select name="freq">
-            <option value="1" ${editing && editing.freq==='1' ? 'selected':''}>1 vez por semana</option>
-            <option value="2" ${editing && editing.freq==='2' ? 'selected':''}>2 veces por semana</option>
-          </select>
         </div>
         <div class="field">
           <label>Precio mensual</label>
@@ -754,8 +971,8 @@ function renderAsistencia(){
   const selected = selectedAsisStudent || state.students[0].id;
   const records = state.attendance.filter(a=>a.studentId===selected).sort((a,b)=>b.date.localeCompare(a.date));
 
-  const statusLabel = {presente:'Presente', ausente:'Ausente', reprogramada:'Reprogramada'};
-  const statusClass = {presente:'sage', ausente:'clay', reprogramada:'gold'};
+  const statusLabel = STATUS_LABEL;
+  const statusClass = STATUS_CLASS;
 
   const rows = records.map(a=>`
     <div class="row">
@@ -903,16 +1120,23 @@ function attachHandlers(){
     studentForm.addEventListener('submit', e=>{
       e.preventDefault();
       const fd = new FormData(studentForm);
+      const days = DAYS.filter(d=>fd.getAll('days').includes(d));
+      if(days.length===0){
+        alert('Elegí al menos un día de clase');
+        return;
+      }
       const data = {
         name: fd.get('name').trim(),
-        day: fd.get('day'),
+        phone: fd.get('phone').trim(),
+        days,
+        freq: String(days.length),
         time: fd.get('time').trim(),
-        freq: fd.get('freq'),
         price: fd.get('price') || 0,
         objectives: fd.get('objectives').trim()
       };
       if(editingStudentId){
         const s = state.students.find(s=>s.id===editingStudentId);
+        delete s.day;
         Object.assign(s, data);
         editingStudentId = null;
       } else {
@@ -934,6 +1158,7 @@ function attachHandlers(){
   document.querySelectorAll('[data-edit-student]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       editingStudentId = btn.dataset.editStudent;
+      viewingStudentId = null;
       render();
       window.scrollTo({top:0, behavior:'smooth'});
     });
@@ -964,6 +1189,57 @@ function attachHandlers(){
     });
   }
 
+  // Ficha
+  document.querySelectorAll('[data-open-student]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      viewingStudentId = btn.dataset.openStudent;
+      editingStudentId = null;
+      render();
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+  const fichaBack = document.getElementById('ficha-back');
+  if(fichaBack){
+    fichaBack.addEventListener('click', ()=>{
+      viewingStudentId = null;
+      render();
+    });
+  }
+
+  // Resumen: navegación de meses
+  const mPrev = document.getElementById('month-prev');
+  const mNext = document.getElementById('month-next');
+  const mToday = document.getElementById('month-today');
+  const curMonth = todayISO().slice(0,7);
+  if(mPrev) mPrev.addEventListener('click', ()=>{
+    viewMonth = shiftMonth(viewMonth || curMonth, -1);
+    render();
+  });
+  if(mNext) mNext.addEventListener('click', ()=>{
+    const next = shiftMonth(viewMonth || curMonth, 1);
+    viewMonth = next >= curMonth ? null : next;
+    render();
+  });
+  if(mToday) mToday.addEventListener('click', ()=>{ viewMonth = null; render(); });
+
+  // Resumen: asistencia rápida de hoy
+  document.querySelectorAll('[data-quick-att]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const studentId = btn.dataset.quickAtt;
+      const status = btn.dataset.status;
+      const today = todayISO();
+      const rec = state.attendance.find(a=>a.studentId===studentId && a.date===today);
+      if(rec){
+        if(rec.status===status) return;
+        rec.status = status;
+      } else {
+        state.attendance.push({id: uid(), studentId, date: today, status, note: ''});
+      }
+      saveData();
+      render();
+    });
+  });
+
   // Pagos
   const pagoSelect = document.getElementById('pago-student-select');
   if(pagoSelect){
@@ -993,6 +1269,7 @@ function attachHandlers(){
 
   document.querySelectorAll('[data-del-payment]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      if(!confirm('¿Eliminar este pago?')) return;
       state.payments = state.payments.filter(p=>p.id!==btn.dataset.delPayment);
       saveData();
       render();
@@ -1076,6 +1353,7 @@ function attachHandlers(){
 
   document.querySelectorAll('[data-del-att]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      if(!confirm('¿Eliminar este registro de asistencia?')) return;
       state.attendance = state.attendance.filter(a=>a.id!==btn.dataset.delAtt);
       saveData();
       render();
@@ -1122,6 +1400,7 @@ function attachHandlers(){
 
   document.querySelectorAll('[data-del-topic]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      if(!confirm('¿Eliminar este tema?')) return;
       state.topics = state.topics.filter(t=>t.id!==btn.dataset.delTopic);
       saveData();
       render();
@@ -1147,6 +1426,7 @@ function attachHandlers(){
 
   document.querySelectorAll('[data-del-grade]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      if(!confirm('¿Eliminar esta nota?')) return;
       state.grades = state.grades.filter(g=>g.id!==btn.dataset.delGrade);
       saveData();
       render();
