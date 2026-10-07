@@ -821,12 +821,19 @@ function paymentStatus(studentId){
     if(b.saldo > 0) return {status:'debe', label:`Debe ${currency(b.saldo)}`};
     return {status:'aldia', label:'Al día'};
   }
-  const pays = state.payments.filter(p=>p.studentId===studentId).sort((a,b)=>b.date.localeCompare(a.date));
-  if(pays.length===0) return {status:'debe', label:'Nunca pagó'};
-  const days = Math.floor((Date.now() - new Date(pays[0].date+'T00:00:00')) / 86400000);
-  if(days > 35) return {status:'debe', label:`Debe · hace ${days} días`};
-  return {status:'aldia', label:'Al día'};
+  // Mensuales: se mira solo lo pagado en el mes actual (vence el 10 de cada mes)
+  const monthKey = todayISO().slice(0,7);
+  const mes = new Date().toLocaleDateString('es-AR', {month:'long'});
+  const price = Number(stu && stu.price || 0);
+  const pagado = state.payments
+    .filter(p=>p.studentId===studentId && p.date.slice(0,7)===monthKey)
+    .reduce((t,p)=>t+Number(p.amount||0), 0);
+  if(price > 0 ? pagado >= price : pagado > 0) return {status:'aldia', label:`Pagó ${mes}`};
+  if(pagado > 0) return {status:'debe', label:`Pagó una parte · falta ${currency(price - pagado)}`};
+  if(new Date().getDate() <= 10) return {status:'pendiente', label:`Pendiente · vence el 10`};
+  return {status:'debe', label:`Debe ${mes}`};
 }
+const PAY_BADGE = {aldia:'sage', pendiente:'gold', debe:'clay'};
 
 function switchTab(tab){
   activeTab = tab;
@@ -911,7 +918,9 @@ function renderResumen(){
         ${next ? `<div class="next-off">Próximo descanso: ${escapeHtml(next.label || 'día libre')} (${offRangeText(next)})</div>` : ''}
       </div>`;
 
-    const deben = activeStudents().map(s=>({s, st:paymentStatus(s.id)})).filter(x=>x.st.status==='debe');
+    const deben = activeStudents().map(s=>({s, st:paymentStatus(s.id)}))
+      .filter(x=>x.st.status!=='aldia')
+      .sort((a,b)=>(a.st.status==='debe' ? 0 : 1) - (b.st.status==='debe' ? 0 : 1));
     const debenRows = deben.map(x=>`
       <div class="row">
         <div class="row-main">
@@ -920,7 +929,7 @@ function renderResumen(){
         </div>
         <div class="row-actions">
           ${waLink(x.s)}
-          <span class="badge clay">Debe</span>
+          <span class="badge ${PAY_BADGE[x.st.status]}">${x.st.status==='debe' ? 'Debe' : 'Pendiente'}</span>
         </div>
       </div>
     `).join('');
@@ -974,7 +983,7 @@ function renderFicha(s){
     <button type="button" class="btn link" id="ficha-back" style="margin-bottom:14px;">‹ Volver a alumnos</button>
     <div class="ficha-head">
       <h2 class="section-title">${escapeHtml(s.name)}</h2>
-      ${s.archived ? '<span class="badge gold">Archivado</span>' : `<span class="badge ${st.status==='aldia' ? 'sage':'clay'}">${st.label}</span>`}
+      ${s.archived ? '<span class="badge gold">Archivado</span>' : `<span class="badge ${PAY_BADGE[st.status]}">${st.label}</span>`}
     </div>
     <div class="ficha-info">
       ${escapeHtml(scheduleText(s))}${priceText(s)}<br>
@@ -1105,7 +1114,7 @@ function renderAlumnos(){
       <div class="row-main">
         <div class="row-top">
           <button type="button" class="name-link row-name" data-open-student="${s.id}">${escapeHtml(s.name)}</button>
-          ${s.archived ? '<span class="badge gold">Archivado</span>' : `<span class="badge ${st.status==='aldia' ? 'sage':'clay'}">${st.label}</span>`}
+          ${s.archived ? '<span class="badge gold">Archivado</span>' : `<span class="badge ${PAY_BADGE[st.status]}">${st.label}</span>`}
         </div>
         <div class="row-sub">${escapeHtml(scheduleText(s))}${priceText(s)}</div>
         ${s.objectives ? `<div class="row-note">Objetivo: ${escapeHtml(s.objectives)}</div>` : ''}
