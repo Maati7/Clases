@@ -822,6 +822,8 @@ function paymentStatus(studentId){
     return {status:'aldia', label:'Al día'};
   }
   // Mensuales: se mira solo lo pagado en el mes actual (vence el 10 de cada mes)
+  if(stu && stu.startDate && stu.startDate > todayISO()) return {status:'aldia', label:`Empieza el ${formatDate(stu.startDate)}`};
+  if(exemptThisMonth(stu)) return {status:'aldia', label:'Empezó este mes'};
   const monthKey = todayISO().slice(0,7);
   const mes = new Date().toLocaleDateString('es-AR', {month:'long'});
   const price = Number(stu && stu.price || 0);
@@ -832,6 +834,38 @@ function paymentStatus(studentId){
   if(pagado > 0) return {status:'debe', label:`Pagó una parte · falta ${currency(price - pagado)}`};
   if(new Date().getDate() <= 10) return {status:'pendiente', label:`Pendiente · vence el 10`};
   return {status:'debe', label:`Debe ${mes}`};
+}
+// Antigüedad del alumno: "hace 1 año y 7 meses"
+function tenureText(start){
+  if(!start) return '';
+  const today = todayISO();
+  if(start > today) return `empieza el ${formatDate(start)}`;
+  const [y1,m1,d1] = start.split('-').map(Number);
+  const [y2,m2,d2] = today.split('-').map(Number);
+  let months = (y2-y1)*12 + (m2-m1) - (d2 < d1 ? 1 : 0);
+  if(months < 1){
+    const days = Math.round((new Date(y2,m2-1,d2) - new Date(y1,m1-1,d1)) / 86400000);
+    return days === 0 ? 'empezó hoy' : `hace ${days} ${days===1 ? 'día' : 'días'}`;
+  }
+  const yrs = Math.floor(months/12), mos = months % 12;
+  const parts = [];
+  if(yrs) parts.push(`${yrs} ${yrs===1 ? 'año' : 'años'}`);
+  if(mos) parts.push(`${mos} ${mos===1 ? 'mes' : 'meses'}`);
+  return 'hace ' + parts.join(' y ');
+}
+// Meses completos desde que empezó
+function tenureMonths(start){
+  if(!start) return 0;
+  const [y1,m1,d1] = start.split('-').map(Number);
+  const [y2,m2,d2] = todayISO().split('-').map(Number);
+  return Math.max(0, (y2-y1)*12 + (m2-m1) - (d2 < d1 ? 1 : 0));
+}
+// No se le cobra el mes actual si todavía no empezó o si empezó este mes después del 10
+function exemptThisMonth(st){
+  if(!st || !st.startDate) return false;
+  const today = todayISO();
+  if(st.startDate > today) return true;
+  return st.startDate.slice(0,7) === today.slice(0,7) && Number(st.startDate.slice(8,10)) > 10;
 }
 const PAY_BADGE = {aldia:'sage', pendiente:'gold', debe:'clay'};
 
@@ -879,6 +913,7 @@ function renderResumen(){
   // Lo que falta cobrar este mes: mensuales sin pagar (o con pago parcial) + saldo de clases sueltas
   const aCobrar = isCurrent ? activeStudents().reduce((sum, st)=>{
     if(isPorClase(st)) return sum + Math.max(0, claseBalance(st).saldo);
+    if(exemptThisMonth(st)) return sum;
     const pagadoMes = state.payments
       .filter(p=>p.studentId===st.id && p.date.slice(0,7)===monthKey)
       .reduce((t,p)=>t+Number(p.amount||0), 0);
@@ -891,7 +926,7 @@ function renderResumen(){
     const off = offDayFor(today);
     const next = nextOffDay(today);
     const hoy = activeStudents()
-      .filter(s=>studentDays(s).includes(dayName))
+      .filter(s=>studentDays(s).includes(dayName) && !(s.startDate && s.startDate > today))
       .sort((a,b)=>timeFor(a,dayName).localeCompare(timeFor(b,dayName)));
 
     const hoyRows = hoy.map(s=>{
@@ -987,7 +1022,10 @@ function renderFicha(s){
     </div>
     <div class="ficha-info">
       ${escapeHtml(scheduleText(s))}${priceText(s)}<br>
-      ${s.phone ? 'Tel: '+escapeHtml(s.phone) : 'Sin teléfono cargado'}
+      ${s.phone ? 'Tel: '+escapeHtml(s.phone) : 'Sin teléfono cargado'}<br>
+      ${s.startDate
+        ? (s.startDate > todayISO() ? `Empieza el ${formatDate(s.startDate)}` : `Empezó el ${formatDate(s.startDate)} · ${tenureText(s.startDate)}`)
+        : 'Sin fecha de inicio (cargala desde Editar datos)'}
       ${s.objectives ? `<div class="row-note">Objetivo: ${escapeHtml(s.objectives)}</div>` : ''}
     </div>
     <div class="ficha-actions">
@@ -1090,6 +1128,11 @@ function buildReport(s, monthKey){
     lines.push('');
     lines.push(`🎯 Objetivo: ${s.objectives}`);
   }
+  const meses = tenureMonths(s.startDate);
+  if(meses >= 2){
+    lines.push('');
+    lines.push(`🎉 Ya llevamos ${tenureText(s.startDate).replace('hace ','')} de clases juntos`);
+  }
   lines.push('');
   lines.push('¡Gracias por la confianza! Cualquier consulta, escribime 😊');
   return lines.join('\n');
@@ -1150,6 +1193,10 @@ function renderAlumnos(){
         </div>
       </div>
       <div class="form-row">
+        <div class="field">
+          <label>Fecha de inicio</label>
+          <input type="date" name="startDate" value="${editing ? (editing.startDate || '') : todayISO()}">
+        </div>
         <div class="field">
           <label>Forma de cobro</label>
           <select name="billing" id="billing-select">
@@ -1540,7 +1587,8 @@ function attachHandlers(){
         freq: String(days.length),
         times: Object.fromEntries(days.map(d=>[d, fd.get('time_'+d) || '']).filter(x=>x[1])),
         price: fd.get('price') || 0,
-        objectives: fd.get('objectives').trim()
+        objectives: fd.get('objectives').trim(),
+        startDate: fd.get('startDate') || ''
       };
       if(editingStudentId){
         const s = state.students.find(s=>s.id===editingStudentId);
@@ -1987,7 +2035,7 @@ function attachHandlers(){
 /* ---------- GUÍA DE USO ---------- */
 const TUTORIAL = [
   {e:'👋', t:'¡Bienvenida a tu cuaderno!', b:['Acá tenés todo en un solo lugar: alumnos, pagos, asistencia y seguimiento.', 'Te muestro en un minuto cómo usarlo.'], tip:'Todo se guarda solo en la nube, y lo ves igual desde el celu o la compu.'},
-  {e:'🧑‍🎓', t:'Cargá a tus alumnos', b:['En <b>Alumnos</b> completás nombre, teléfono, días, horario y precio.', 'En <b>Forma de cobro</b> elegís si paga por mes o por clase suelta.'], tip:'Tocá el nombre de un alumno para abrir su ficha con todo su historial.'},
+  {e:'🧑‍🎓', t:'Cargá a tus alumnos', b:['En <b>Alumnos</b> completás nombre, teléfono, fecha de inicio, días, horario y precio.', 'En <b>Forma de cobro</b> elegís si paga por mes o por clase suelta.'], tip:'Tocá el nombre de un alumno para abrir su ficha con todo su historial.'},
   {e:'📅', t:'Tu día en "Hoy"', b:['En <b>Resumen</b> aparecen los alumnos que tienen clase hoy, ordenados por horario.', 'Marcás Presente, Ausente o Reprogramada con un toque.'], tip:'Si te equivocás, tocá otro botón y se corrige.'},
   {e:'💰', t:'Pagos', b:['En <b>Pagos</b> registrás lo que te pagan. A los alumnos por clase la app les calcula el saldo y te completa el monto.', 'Los que deben aparecen en el Resumen, con un botón para recordarles por WhatsApp.'], tip:'Para que funcione el WhatsApp, cargá el teléfono con la característica y sin el 15.'},
   {e:'📝', t:'Seguimiento', b:['En <b>Seguimiento</b> anotás el objetivo de cada alumno, los temas que van viendo y las notas de las evaluaciones.'], tip:'Con eso se arma solo el informe mensual.'},
