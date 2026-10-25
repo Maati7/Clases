@@ -400,6 +400,24 @@ input:focus, select:focus, textarea:focus{
 .raise-row.off .raise-prices b{color:var(--ink-soft); font-weight:400;}
 .raise-actions{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;}
 
+.undo-toast{
+  position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom, 0px)); z-index:40;
+  transform:translate(-50%, 140%); opacity:0;
+  display:flex; align-items:center; gap:14px;
+  background:#2B2420; color:#FBF7F0; border-radius:6px;
+  padding:12px 14px 12px 16px; font-size:14px; width:max-content; max-width:calc(100% - 32px);
+  box-shadow:0 10px 26px rgba(0,0,0,.25);
+  transition:transform .25s ease, opacity .25s ease;
+}
+.undo-toast.show{transform:translate(-50%, 0); opacity:1;}
+.undo-toast button{
+  border:none; background:none; color:#F6B9BE; font-weight:700; font-size:14px;
+  cursor:pointer; padding:4px 2px; white-space:nowrap;
+}
+@media (prefers-reduced-motion: reduce){ .undo-toast{transition:none;} }
+.row.editing{background:#F3EEE3; margin:0 -10px; padding-left:10px; padding-right:10px; border-radius:4px;}
+.edit-banner{font-size:12.5px; color:var(--cover); font-weight:600; margin-bottom:10px;}
+
 .month-nav{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:18px;}
 .month-nav h2{margin:0; text-align:center;}
 .month-nav button{
@@ -556,6 +574,11 @@ input:focus, select:focus, textarea:focus{
   <main id="main"></main>
 </div>
 
+<div class="undo-toast" id="undo-toast" role="status" aria-live="polite">
+  <span id="undo-text"></span>
+  <button type="button" id="undo-btn">Deshacer</button>
+</div>
+
 <div class="tutorial" id="tutorial" role="dialog" aria-modal="true" aria-labelledby="tut-title">
   <div class="tutorial-card">
     <div class="tutorial-emoji" id="tut-emoji"></div>
@@ -612,7 +635,9 @@ let selectedAsisStudent = null;
 let selectedSeguimientoStudent = null;
 let viewMonth = null;          // null = mes actual
 let viewingStudentId = null;   // ficha abierta en Alumnos
-let reportMonth = null;        // mes del informe en la ficha
+let reportMonth = null;
+let editingTopicId = null;     // tema que se está corrigiendo en Seguimiento
+let editingGradeId = null;     // nota que se está corrigiendo en Seguimiento        // mes del informe en la ficha
 let attendanceStatusChoice = 'presente';
 
 let showArchived = false;
@@ -873,6 +898,8 @@ function switchTab(tab){
   activeTab = tab;
   viewingStudentId = null;
   editingStudentId = null;
+  editingTopicId = null;
+  editingGradeId = null;
   document.querySelectorAll('.tab-btn').forEach(b=>{
     b.classList.toggle('active', b.dataset.tab === tab);
   });
@@ -1481,23 +1508,34 @@ function renderSeguimiento(){
   const topics = state.topics.filter(t=>t.studentId===selected).sort((a,b)=>b.date.localeCompare(a.date));
   const grades = state.grades.filter(g=>g.studentId===selected).sort((a,b)=>b.date.localeCompare(a.date));
 
+  const editTopic = state.topics.find(t=>t.id===editingTopicId) || null;
+  const editGrade = state.grades.find(g=>g.id===editingGradeId) || null;
+  const studentOptions = cur => activeStudents()
+    .map(s=>`<option value="${s.id}" ${s.id===cur ? 'selected':''}>${escapeHtml(s.name)}</option>`).join('');
+
   const topicRows = topics.map(t=>`
-    <div class="row">
+    <div class="row ${t.id===editingTopicId ? 'editing':''}">
       <div class="row-main">
         <div class="row-name">${formatDate(t.date)}</div>
         <div class="row-sub">${escapeHtml(t.topic)}</div>
       </div>
-      <button class="icon-btn" data-del-topic="${t.id}">Eliminar</button>
+      <div class="row-actions">
+        <button class="icon-btn" data-edit-topic="${t.id}">Editar</button>
+        <button class="icon-btn" data-del-topic="${t.id}">Eliminar</button>
+      </div>
     </div>
   `).join('');
 
   const gradeRows = grades.map(g=>`
-    <div class="row">
+    <div class="row ${g.id===editingGradeId ? 'editing':''}">
       <div class="row-main">
         <div class="row-name">${escapeHtml(g.grade)}</div>
         <div class="row-sub">${formatDate(g.date)}${g.comment ? ' · '+escapeHtml(g.comment) : ''}</div>
       </div>
-      <button class="icon-btn" data-del-grade="${g.id}">Eliminar</button>
+      <div class="row-actions">
+        <button class="icon-btn" data-edit-grade="${g.id}">Editar</button>
+        <button class="icon-btn" data-del-grade="${g.id}">Eliminar</button>
+      </div>
     </div>
   `).join('');
 
@@ -1520,17 +1558,28 @@ function renderSeguimiento(){
     <div class="section-block">
       <h3 class="calc-title">Temas dados</h3>
       <form id="topic-form">
+        ${editTopic ? '<div class="edit-banner">Corrigiendo un tema</div>' : ''}
         <div class="form-row">
-          <div class="field" style="max-width:140px;">
+          <div class="field" style="max-width:160px;">
             <label>Fecha</label>
-            <input type="date" name="date" required value="${todayISO()}">
+            <input type="date" name="date" required value="${editTopic ? editTopic.date : todayISO()}">
           </div>
           <div class="field">
             <label>Tema</label>
-            <input type="text" name="topic" required placeholder="Ej: present perfect, vocabulario de viajes">
+            <input type="text" name="topic" required placeholder="Ej: present perfect, vocabulario de viajes" value="${editTopic ? escapeHtml(editTopic.topic) : ''}">
           </div>
         </div>
-        <button type="submit" class="btn small">Agregar tema</button>
+        ${editTopic ? `
+        <div class="form-row">
+          <div class="field">
+            <label>Alumno (cambialo si lo cargaste en el equivocado)</label>
+            <select name="studentId">${studentOptions(editTopic.studentId)}</select>
+          </div>
+        </div>` : ''}
+        <div class="row-actions" style="justify-content:flex-start; gap:14px;">
+          <button type="submit" class="btn small">${editTopic ? 'Guardar cambios' : 'Agregar tema'}</button>
+          ${editTopic ? '<button type="button" class="btn link" id="cancel-topic-edit">Cancelar</button>' : ''}
+        </div>
       </form>
       <div class="ledger" style="margin-top:14px;">
         ${topicRows || '<div class="empty">Todavía no hay temas cargados</div>'}
@@ -1540,23 +1589,34 @@ function renderSeguimiento(){
     <div class="section-block">
       <h3 class="calc-title">Notas de evaluaciones</h3>
       <form id="grade-form">
+        ${editGrade ? '<div class="edit-banner">Corrigiendo una nota</div>' : ''}
         <div class="form-row">
           <div class="field">
             <label>Fecha</label>
-            <input type="date" name="date" required value="${todayISO()}">
+            <input type="date" name="date" required value="${editGrade ? editGrade.date : todayISO()}">
           </div>
           <div class="field">
             <label>Nota / calificación</label>
-            <input type="text" name="grade" required placeholder="Ej: 9, o 'Muy bueno'">
+            <input type="text" name="grade" required placeholder="Ej: 9, o 'Muy bueno'" value="${editGrade ? escapeHtml(editGrade.grade) : ''}">
           </div>
         </div>
         <div class="form-row">
           <div class="field">
             <label>Comentario (opcional)</label>
-            <input type="text" name="comment" placeholder="Ej: mejoró mucho el listening">
+            <input type="text" name="comment" placeholder="Ej: mejoró mucho el listening" value="${editGrade ? escapeHtml(editGrade.comment||'') : ''}">
           </div>
         </div>
-        <button type="submit" class="btn small">Agregar nota</button>
+        ${editGrade ? `
+        <div class="form-row">
+          <div class="field">
+            <label>Alumno (cambialo si la cargaste en el equivocado)</label>
+            <select name="studentId">${studentOptions(editGrade.studentId)}</select>
+          </div>
+        </div>` : ''}
+        <div class="row-actions" style="justify-content:flex-start; gap:14px;">
+          <button type="submit" class="btn small">${editGrade ? 'Guardar cambios' : 'Agregar nota'}</button>
+          ${editGrade ? '<button type="button" class="btn link" id="cancel-grade-edit">Cancelar</button>' : ''}
+        </div>
       </form>
       <div class="ledger" style="margin-top:14px;">
         ${gradeRows || '<div class="empty">Todavía no hay notas cargadas</div>'}
@@ -1963,6 +2023,8 @@ function attachHandlers(){
     segSelect.value = selectedSeguimientoStudent;
     segSelect.addEventListener('change', ()=>{
       selectedSeguimientoStudent = segSelect.value;
+      editingTopicId = null;
+      editingGradeId = null;
       render();
     });
   }
@@ -1979,58 +2041,143 @@ function attachHandlers(){
     });
   }
 
+  const studentName = id => (state.students.find(x=>x.id===id) || {}).name || '';
+  const scrollToForm = id => {
+    const f = document.getElementById(id);
+    if(f) f.scrollIntoView({behavior:'smooth', block:'center'});
+  };
+
+  // Temas dados
   const topicForm = document.getElementById('topic-form');
   if(topicForm){
     topicForm.addEventListener('submit', e=>{
       e.preventDefault();
       const fd = new FormData(topicForm);
-      state.topics.push({
-        id: uid(),
-        studentId: segSelect.value,
-        date: fd.get('date'),
-        topic: fd.get('topic').trim()
-      });
-      saveData();
-      render();
+      const before = snapshotSeguimiento();
+      if(editingTopicId){
+        const t = state.topics.find(x=>x.id===editingTopicId);
+        const moved = fd.get('studentId') && fd.get('studentId') !== t.studentId;
+        t.date = fd.get('date');
+        t.topic = fd.get('topic').trim();
+        if(fd.get('studentId')) t.studentId = fd.get('studentId');
+        editingTopicId = null;
+        saveData(); render();
+        showUndo(moved ? `Tema pasado a ${studentName(t.studentId)}` : 'Tema corregido', before);
+      } else {
+        state.topics.push({
+          id: uid(),
+          studentId: segSelect.value,
+          date: fd.get('date'),
+          topic: fd.get('topic').trim()
+        });
+        saveData(); render();
+        showUndo(`Tema agregado a ${studentName(segSelect.value)}`, before);
+      }
     });
   }
+  const cancelTopic = document.getElementById('cancel-topic-edit');
+  if(cancelTopic) cancelTopic.addEventListener('click', ()=>{ editingTopicId = null; render(); });
 
-  document.querySelectorAll('[data-del-topic]').forEach(btn=>{
+  document.querySelectorAll('[data-edit-topic]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      if(!confirm('¿Eliminar este tema?')) return;
-      state.topics = state.topics.filter(t=>t.id!==btn.dataset.delTopic);
-      saveData();
+      editingTopicId = btn.dataset.editTopic;
+      editingGradeId = null;
       render();
+      scrollToForm('topic-form');
     });
   });
 
+  document.querySelectorAll('[data-del-topic]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const before = snapshotSeguimiento();
+      state.topics = state.topics.filter(t=>t.id!==btn.dataset.delTopic);
+      if(editingTopicId === btn.dataset.delTopic) editingTopicId = null;
+      saveData(); render();
+      showUndo('Tema eliminado', before);
+    });
+  });
+
+  // Notas de evaluaciones
   const gradeForm = document.getElementById('grade-form');
   if(gradeForm){
     gradeForm.addEventListener('submit', e=>{
       e.preventDefault();
       const fd = new FormData(gradeForm);
-      state.grades.push({
-        id: uid(),
-        studentId: segSelect.value,
-        date: fd.get('date'),
-        grade: fd.get('grade').trim(),
-        comment: fd.get('comment').trim()
-      });
-      saveData();
-      render();
+      const before = snapshotSeguimiento();
+      if(editingGradeId){
+        const g = state.grades.find(x=>x.id===editingGradeId);
+        const moved = fd.get('studentId') && fd.get('studentId') !== g.studentId;
+        g.date = fd.get('date');
+        g.grade = fd.get('grade').trim();
+        g.comment = fd.get('comment').trim();
+        if(fd.get('studentId')) g.studentId = fd.get('studentId');
+        editingGradeId = null;
+        saveData(); render();
+        showUndo(moved ? `Nota pasada a ${studentName(g.studentId)}` : 'Nota corregida', before);
+      } else {
+        state.grades.push({
+          id: uid(),
+          studentId: segSelect.value,
+          date: fd.get('date'),
+          grade: fd.get('grade').trim(),
+          comment: fd.get('comment').trim()
+        });
+        saveData(); render();
+        showUndo(`Nota agregada a ${studentName(segSelect.value)}`, before);
+      }
     });
   }
+  const cancelGrade = document.getElementById('cancel-grade-edit');
+  if(cancelGrade) cancelGrade.addEventListener('click', ()=>{ editingGradeId = null; render(); });
+
+  document.querySelectorAll('[data-edit-grade]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      editingGradeId = btn.dataset.editGrade;
+      editingTopicId = null;
+      render();
+      scrollToForm('grade-form');
+    });
+  });
 
   document.querySelectorAll('[data-del-grade]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      if(!confirm('¿Eliminar esta nota?')) return;
+      const before = snapshotSeguimiento();
       state.grades = state.grades.filter(g=>g.id!==btn.dataset.delGrade);
-      saveData();
-      render();
+      if(editingGradeId === btn.dataset.delGrade) editingGradeId = null;
+      saveData(); render();
+      showUndo('Nota eliminada', before);
     });
   });
 
 }
+
+/* ---------- DESHACER ---------- */
+let undoTimer = null;
+let undoSnapshot = null;
+function snapshotSeguimiento(){
+  return JSON.stringify({topics: state.topics, grades: state.grades});
+}
+function showUndo(message, before){
+  undoSnapshot = before;
+  document.getElementById('undo-text').textContent = message;
+  const toast = document.getElementById('undo-toast');
+  toast.classList.add('show');
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(()=>{ toast.classList.remove('show'); undoSnapshot = null; }, 7000);
+}
+document.getElementById('undo-btn').addEventListener('click', ()=>{
+  if(!undoSnapshot) return;
+  const prev = JSON.parse(undoSnapshot);
+  state.topics = prev.topics;
+  state.grades = prev.grades;
+  undoSnapshot = null;
+  editingTopicId = null;
+  editingGradeId = null;
+  saveData(); render();
+  document.getElementById('undo-text').textContent = 'Listo, se deshizo';
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(()=>document.getElementById('undo-toast').classList.remove('show'), 1800);
+});
 
 /* ---------- GUÍA DE USO ---------- */
 const TUTORIAL = [
